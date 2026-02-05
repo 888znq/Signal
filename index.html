@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>EURUSD DNA - WALL HUNTER</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --bg-primary:#000000;
+  --bg-secondary:#000000;
+  --border-medium:#ff0000;
+  --text-secondary:#ff0000;
+  --status-live:#00ff00;
+  --bar-size: 30px; 
+  --w-streak: 50px;
+  --w-index: 55px;
+  --w-hunter: 180px;
+  --w-sidebar: calc(var(--w-streak) + var(--w-index) + var(--w-hunter));
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+body,html{
+  background:var(--bg-primary);
+  width:100vw;
+  height:100vh;
+  overflow:hidden;
+  font-family: 'JetBrains Mono', monospace;
+  touch-action:none;
+  color: #ff0000;
+}
+
+/* ANIMATION FOR PULSING DROPDOWN */
+@keyframes pulse-red {
+  0% { text-shadow: 0 0 0 rgba(255, 0, 0, 0.4); transform: scale(1); color:#ff0000; }
+  50% { text-shadow: 0 0 10px rgba(255, 0, 0, 0.8); transform: scale(1.1); color:#fff; }
+  100% { text-shadow: 0 0 0 rgba(255, 0, 0, 0.4); transform: scale(1); color:#ff0000; }
+}
+
+.pulse-val {
+  animation: pulse-red 1s infinite ease-in-out;
+  font-weight: 800;
+  display: inline-block;
+}
+
+#ui{
+  position:fixed; top:0; left:0; right:0; height:var(--bar-size);
+  background:var(--bg-secondary); border-bottom:1px solid var(--border-medium);
+  padding:0 10px; z-index:1000; display:flex; align-items:center; justify-content:space-between;
+}
+
+.logo { font-weight:800; color:#ff0000; font-size:12px; }
+#priceTag { color:#00ff00; font-size:11px; font-weight:bold; }
+
+#app-container { display: flex; height: 100vh; padding-top: var(--bar-size); }
+#stage { flex: 1; position: relative; background: var(--bg-primary); overflow: hidden; }
+canvas { display:block; }
+
+#sidebar {
+  width: var(--w-sidebar); background: var(--bg-secondary);
+  border-left: 1px solid var(--border-medium); display: flex; flex-direction: row; height: 100%;
+}
+
+#col-streak { width: var(--w-streak); border-right: 1px solid var(--border-medium); overflow: hidden; }
+#col-index { width: var(--w-index); border-right: 1px solid var(--border-medium); background: #000000; overflow: hidden; }
+#col-hunter { width: var(--w-hunter); display: flex; flex-direction: column; background: #000000; }
+
+.streak-row{display:flex;width:100%;border-bottom:1px solid #ff0000;cursor:pointer;height:100%;}
+.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;}
+.streak-col.red-side{background:#ff0000; color:#000000;}
+.streak-col.green-side{background:#00ff00; color:#000000;}
+
+.index-cell{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  font-size:9px; font-weight:700; color:#ff0000; border-bottom:1px solid #ff0000;
+}
+
+.hunter-body { flex: 1; overflow-y: auto; }
+.h-row {
+  display: flex; flex-direction: column; padding: 8px; border-bottom: 1px solid #330000;
+  font-size: 9px; color: #ff0000; cursor: pointer; gap: 4px;
+}
+.h-row:hover { background: #1a0000; border-bottom:1px solid #ff0000; }
+.tag-r { color: #ff4444; } .tag-g { color: #44ff44; }
+
+#modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:2000;backdrop-filter:blur(2px);}
+#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:400px;background:#000000;border:1px solid #ff0000;z-index:2001;border-radius:8px;flex-direction:column;overflow:hidden;}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="logo">SYNTHETIC <span>TIME</span></div>
+  <div id="priceTag">CONNECTING...</div>
+</div>
+
+<div id="app-container">
+  <div id="stage"><canvas id="matrixCanvas"></canvas></div>
+  <div id="sidebar">
+    <div id="col-streak"></div>
+    <div id="col-index"></div>
+    <div id="col-hunter"><div class="hunter-body" id="hunterList"></div></div>
+  </div>
+</div>
+
+<div id="modalOverlay" onclick="closeModal()"></div>
+<div id="modal">
+  <div id="modalTitle" style="padding:10px; text-align:center; background:#ff0000; color:#000; font-size:11px; font-weight:bold;"></div>
+  <div style="flex:1; display:flex;">
+    <div id="rD" style="flex:1; overflow-y:auto; background:#000000; border-right:1px solid #ff0000;"></div>
+    <div id="gD" style="flex:1; overflow-y:auto; background:#000000;"></div>
+  </div>
+</div>
+
+<script>
+const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false});
+const SYMBOL="frxEURUSD", DERIV_WS="wss://ws.derivws.com/websockets/v3?app_id=1089";
+let matrixData={}, currentColumn=0, ticksInCurrentMinute=0, cameraX=0, isFollowing=true;
+const CELL_W=50, TOTAL_ROWS=60, MAX_COLS=7200, BAR_SIZE=25; 
+let CELL_H=16;
+
+const ENGINE = {
+  offsets: Array.from({length: 60}, (_, i) => ({
+    id: i, bucket_end: 0, open: 0, close: 0, high: 0, low: 0,
+    prev_streak: 0, prev_color: 'N', show_streak: 0, show_color: 'N'
+  }))
+};
+
+const pad=(n,s=2)=>String(n).padStart(s,'0');
+const fmt=(n)=>String(n).split('').join(' ');
+
+function getWeekProgress(){
+  const now=new Date(), day=now.getDay();
+  const secsToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+  return Math.max(0, (day === 0 ? 6 * 86400 : (day - 1) * 86400) + secsToday);
+}
+
+function processTick(price, time) {
+  document.getElementById('priceTag').innerText = price;
+  for(let i=0; i<60; i++) {
+    const c = ENGINE.offsets[i];
+    const bucket = Math.floor((time - i) / 60) * 60 + i;
+    if (bucket > c.bucket_end) {
+      if (c.bucket_end !== 0) { 
+        const closedColor = c.close > c.open ? 'G' : (c.close < c.open ? 'R' : 'N');
+        if (closedColor === c.prev_color && closedColor !== 'N') c.prev_streak++;
+        else if (closedColor !== 'N') { c.prev_color = closedColor; c.prev_streak = 1; }
+      }
+      c.bucket_end = bucket; c.open = price; c.high = price; c.low = price; c.close = price;
+    } else {
+      c.close = price; if(price > c.high) c.high = price; if(price < c.low) c.low = price;
+    }
+    const liveColor = c.close > c.open ? 'G' : (c.close < c.open ? 'R' : 'N');
+    if (liveColor === 'N') { c.show_streak = c.prev_streak; c.show_color = c.prev_color; }
+    else if (liveColor === c.prev_color) { c.show_streak = c.prev_streak + 1; c.show_color = liveColor; }
+    else { c.show_streak = 1; c.show_color = liveColor; }
+  }
+}
+
+function handleTick(tick){
+  const s = getWeekProgress(); 
+  currentColumn = Math.floor(s/60) % MAX_COLS; ticksInCurrentMinute = s % 60; 
+  processTick(tick.quote, tick.epoch);
+  if(!matrixData[currentColumn]) matrixData[currentColumn]={};
+  const d = ENGINE.offsets[ticksInCurrentMinute];
+  matrixData[currentColumn][ticksInCurrentMinute] = { c: d.show_color, s: d.show_streak, p: tick.quote };
+  updatePanels(); if(isFollowing) jumpToCurrent();
+}
+
+let lastScan = 0;
+function updatePanels(){
+  let hS='', hI='';
+  const rowH = CELL_H + 'px';
+  for(let r=0; r<TOTAL_ROWS; r++){
+    let rM = 0, gM = 0;
+    Object.values(matrixData).forEach(col => {
+      if(col[r]) { if(col[r].c === 'R') rM = Math.max(rM, col[r].s); else gM = Math.max(gM, col[r].s); }
+    });
+    hS+=`<div class="streak-row" onclick="openModal(${r})" style="height:${rowH}"><div class="streak-col red-side">${rM>0?'x'+rM:'--'}</div><div class="streak-col green-side">${gM>0?'x'+gM:'--'}</div></div>`;
+    hI+=`<div class="index-cell" style="height:${rowH}">${pad(r)}_${pad(r)}</div>`;
+  }
+  document.getElementById('col-streak').innerHTML=hS; document.getElementById('col-index').innerHTML=hI;
+  if (Date.now() - lastScan > 2000) { scanWalls(); lastScan = Date.now(); }
+}
+
+function scanWalls() {
+  let stats = {}; for(let i=0; i<60; i++) stats[i] = { 'R': {}, 'G': {} };
+  
+  // 1. Aggregate Data
+  Object.values(matrixData).forEach(col => {
+    Object.keys(col).forEach(k => {
+      const c = col[k]; if (c.c !== 'N' && c.s > 0) { stats[k][c.c][c.s] = (stats[k][c.c][c.s] || 0) + 1; }
+    });
+  });
+
+  let drops = [];
+  
+  // 2. Calculate Dropdowns
+  for(let off=0; off<60; off++) {
+    ['R', 'G'].forEach(col => {
+      let counts = stats[off][col];
+      let maxS = Math.max(0, ...Object.keys(counts).map(Number));
+      
+      // Build Reached Counts (Cumulative)
+      let reached = {}, running = 0;
+      for(let s=maxS; s>=1; s--) { running += (counts[s]||0); reached[s] = running; }
+      
+      // Find Dropdowns between S and S+1
+      for(let s=1; s<maxS; s++) {
+        let curr = reached[s];
+        let next = reached[s+1] || 0;
+        
+        // Only consider if we have decent sample size (>5)
+        if(curr > 5) {
+          let dropPct = ((curr - next) / curr) * 100;
+          drops.push({
+             rId: off,
+             row: `${pad(off)}_${pad(off)}`,
+             col: col,
+             s: s,
+             curr: curr,
+             next: next,
+             drop: dropPct
+          });
+        }
+      }
+    });
+  }
+
+  // 3. Sort by Drop% Descending & Take Top 10
+  drops.sort((a,b) => b.drop - a.drop);
+  const top10 = drops.slice(0, 10);
+
+  // 4. Render Format: [ 40_40 ] - [ X 6 - 1 6 7 ] [ % ] [ X 7 - 3 4 ]
+  // Note: Spaced numbers using fmt() and pulsing percentage
+  document.getElementById('hunterList').innerHTML = top10.map(w => `
+    <div class="h-row" onclick="openModal(${w.rId})">
+      <div style="display:flex; justify-content:space-between; width:100%;">
+         <span style="font-weight:bold;">[ ${w.row} ]</span>
+         <span class="pulse-val">[ ${w.drop.toFixed(0)}% ]</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; width:100%; margin-top:2px;">
+         <span class="${w.col==='R'?'tag-r':'tag-g'}">[ X ${w.s} - ${fmt(w.curr)} ]</span>
+      </div>
+      <div style="display:flex; justify-content:flex-end; width:100%; opacity:0.6;">
+         <span>[ X ${w.s+1} - ${fmt(w.next)} ]</span>
+      </div>
+    </div>
+  `).join('') || '<div style="padding:10px;text-align:center">SCANNING...</div>';
+}
+
+function openModal(sec){
+  document.getElementById('modalTitle').innerText=`${pad(sec)}_${pad(sec)}`;
+  let rL=[], gL=[];
+  Object.keys(matrixData).forEach(col => { if(matrixData[col][sec]){ const d=matrixData[col][sec]; if(d.c==='R') rL.push(d.s); else gL.push(d.s); }});
+  const sum = (l) => { 
+    const c={}; l.forEach(v=>c[v]=(c[v]||0)+1);
+    return Object.keys(c).map(k=>({s:parseInt(k), count:c[k]})).sort((a,b)=>b.s-a.s);
+  };
+  document.getElementById('rD').innerHTML = sum(rL).map(i => `<div style="padding:8px;border-bottom:1px solid #ff0000;color:#ff0000;font-size:10px;"><b>X ${i.s}</b> <span style="float:right"> - ${fmt(i.count)}</span></div>`).join('');
+  document.getElementById('gD').innerHTML = sum(gL).map(i => `<div style="padding:8px;border-bottom:1px solid #ff0000;color:#00ff00;font-size:10px;"><b>X ${i.s}</b> <span style="float:right"> - ${fmt(i.count)}</span></div>`).join('');
+  document.getElementById('modal').style.display='flex'; document.getElementById('modalOverlay').style.display='block';
+}
+
+function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
+function jumpToCurrent(){ cameraX = Math.max(0, (currentColumn*CELL_W)-(canvas.width/window.devicePixelRatio - CELL_W)); }
+
+window.onresize=()=>{ 
+  const dpr=window.devicePixelRatio||1, s=document.getElementById('stage');
+  canvas.width=s.clientWidth*dpr; canvas.height=s.clientHeight*dpr;
+  canvas.style.width=s.clientWidth+'px'; canvas.style.height=s.clientHeight+'px';
+  ctx.scale(dpr,dpr); CELL_H=(s.clientHeight-BAR_SIZE)/TOTAL_ROWS; updatePanels();
+};
+
+function connect(){
+  let ws=new WebSocket(DERIV_WS);
+  ws.onopen=()=>{ ws.send(JSON.stringify({ticks:SYMBOL, subscribe:1})); };
+  ws.onmessage=(m)=>{ const d=JSON.parse(m.data); if(d.tick) handleTick(d.tick); };
+  ws.onclose=()=>{ setTimeout(connect,3000); };
+}
+
+function draw(){
+  const w=canvas.width/window.devicePixelRatio, h=canvas.height/window.devicePixelRatio;
+  ctx.fillStyle='#000000'; ctx.fillRect(0,0,w,h); 
+  ctx.save(); ctx.translate(-cameraX,0);
+  let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+w)/CELL_W)+1);
+  const beforeCol = currentColumn > 0 ? currentColumn - 1 : MAX_COLS - 1;
+  let maxS = 0; if (matrixData[beforeCol]) Object.values(matrixData[beforeCol]).forEach(d => { if (d.s > maxS) maxS = d.s; });
+  ctx.strokeStyle='#ff0000'; ctx.lineWidth=1;
+  for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
+  for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
+  for(let a=sC; a<=eC; a++) if(matrixData[a]) Object.keys(matrixData[a]).forEach(r=>{
+    const d=matrixData[a][r]; if(d.c === 'N') return;
+    const isP = (a === beforeCol && d.s === maxS && d.s > 1), scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(Date.now() / 200)))) : 1;
+    ctx.save(); if(isP) { ctx.translate(a*CELL_W+CELL_W/2, r*CELL_H+CELL_H/2); ctx.scale(scale, scale); ctx.translate(-(a*CELL_W+CELL_W/2), -(r*CELL_H+CELL_H/2)); }
+    ctx.fillStyle = d.c==='R' ? '#ff0000' : '#00ff00'; ctx.fillRect(a*CELL_W+1.5, r*CELL_H+1.5, CELL_W-3, CELL_H-3);
+    ctx.fillStyle='#000000'; ctx.font='bold 10px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('x'+d.s, a*CELL_W+CELL_W/2, r*CELL_H+CELL_H/2); ctx.restore();
+  });
+  ctx.restore();
+  const barY = TOTAL_ROWS * CELL_H;
+  ctx.fillStyle = '#000000'; ctx.fillRect(0, barY, w, BAR_SIZE);
+  ctx.strokeStyle='#ff0000'; ctx.beginPath(); ctx.moveTo(0, barY); ctx.lineTo(w, barY); ctx.stroke();
+  const now=new Date(), day=now.getDay(), diff=now.getDate()-day+(day===0?-6:1);
+  const weekStart=new Date(now.setDate(diff)); weekStart.setHours(0,0,0,0);
+  ctx.save(); ctx.translate(-cameraX, 0); ctx.fillStyle='#ff0000'; ctx.font='700 9px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(let a=sC; a<=eC; a++) if (a <= currentColumn) { 
+    const lD=new Date(weekStart.getTime()+(a*60000));
+    ctx.fillText(`${pad(lD.getHours())}:${pad(lD.getMinutes())}`, a*CELL_W+CELL_W/2, barY + (BAR_SIZE / 2));
+  }
+  ctx.restore(); requestAnimationFrame(draw);
+}
+window.onload = () => { window.onresize(); connect(); draw(); };
+</script>
+</body>
+</html>
