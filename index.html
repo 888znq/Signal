@@ -32,7 +32,7 @@
             overflow: hidden; 
             font-family: 'JetBrains Mono', monospace; 
             color: var(--text-primary); 
-            touch-action: none; /* Important for dragging */
+            touch-action: none; 
         }
 
         #ui { 
@@ -46,7 +46,6 @@
         
         #stage { flex: 1; position: relative; background: var(--bg-primary); overflow: hidden; }
         
-        /* Cursor styles for dragging */
         canvas { display: block; width: 100%; height: 100%; cursor: grab; user-select: none; }
         canvas:active { cursor: grabbing; }
 
@@ -79,13 +78,11 @@
         #modalOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; backdrop-filter: blur(4px); }
         #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; height: 450px; background: var(--bg-secondary); border: 1px solid var(--border-medium); z-index: 2001; flex-direction: column; }
         
-        /* Follow Button */
         #followBtn {
             background: var(--bg-tertiary); border: 1px solid var(--border-medium); 
             color: var(--text-dim); padding: 4px 10px; font-size: 10px; 
             font-weight: 700; cursor: pointer; border-radius: 4px;
         }
-        #followBtn.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
     </style>
 </head>
 <body>
@@ -128,25 +125,21 @@
     const SYMBOL = "frxEURUSD";
     const DERIV_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
-    // --- CONFIGURATION ---
     const CELL_W = 45;      
     let CELL_H = 16;        
-    const MAX_COLS = 7200; // Store more history
+    const MAX_COLS = 7200; 
 
-    // --- STATE ---
     let matrixData = {};
     let currentColumn = 0;
     let activeSecond = 0;
     let lastPrice = 0;
     
-    // --- CAMERA / DRAG STATE ---
     let cameraX = 0;
     let isFollowing = true;
     let isDragging = false;
     let dragStartX = 0;
     let dragStartCameraX = 0;
 
-    // --- ENGINE ---
     const ENGINE = Array.from({ length: 60 }, (_, i) => ({
         id: i, bucket_ts: 0, open: 0, close: 0,
         prev_color: 'Gray', prev_streak: 0,
@@ -155,6 +148,18 @@
     }));
 
     const pad = (n) => String(n).padStart(2, '0');
+
+    // Helper to keep coordinates small (DNA Logic)
+    function getWeekProgress() {
+        const now = new Date();
+        const day = now.getDay();
+        const secsToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+        // Simple continuous counter for the week
+        // 0 = Sunday, 1 = Monday... 
+        // We just need a number that increases every second and resets weekly/daily to keep X small
+        // Using a simple epoch modulo is safer for this specific visualizer
+        return Math.floor(Date.now() / 1000); 
+    }
 
     function processTick(price, epoch) {
         document.getElementById('priceTag').innerText = price.toFixed(5);
@@ -188,7 +193,11 @@
     function handleTick(tick) {
         const now = tick.epoch;
         processTick(tick.quote, now);
-        currentColumn = Math.floor(now / 60);
+        
+        // FIX: Use Modulo to keep column index within 0-7200 range
+        // This ensures the X coordinate never exceeds what the browser can draw
+        const weekSecs = getWeekProgress();
+        currentColumn = Math.floor(weekSecs / 60) % MAX_COLS;
 
         if (!matrixData[currentColumn]) matrixData[currentColumn] = {};
 
@@ -203,10 +212,8 @@
         if(isFollowing) jumpToCurrent();
     }
 
-    // --- DRAG & CAMERA LOGIC ---
     function jumpToCurrent(){ 
         const stageW = canvas.width / window.devicePixelRatio;
-        // Keep active column near right edge
         cameraX = Math.max(0, (currentColumn * CELL_W) - stageW + (CELL_W * 2)); 
     }
 
@@ -218,42 +225,27 @@
         if(isFollowing) jumpToCurrent();
     }
 
-    // Mouse Events
     canvas.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        dragStartX = e.clientX;
-        dragStartCameraX = cameraX;
-        isFollowing = false;
-        document.getElementById('followBtn').innerText = "RESUME FOLLOW";
+        isDragging = true; dragStartX = e.clientX; dragStartCameraX = cameraX;
+        isFollowing = false; document.getElementById('followBtn').innerText = "RESUME FOLLOW";
         document.getElementById('followBtn').style.color = "#666";
     });
-
     window.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
-        const deltaX = dragStartX - e.clientX;
-        cameraX = Math.max(0, dragStartCameraX + deltaX);
+        cameraX = Math.max(0, dragStartCameraX + (dragStartX - e.clientX));
     });
-
     window.addEventListener('mouseup', () => { isDragging = false; });
-
-    // Touch Events
+    
     canvas.addEventListener('touchstart', (e) => {
-        isDragging = true;
-        dragStartX = e.touches[0].clientX;
-        dragStartCameraX = cameraX;
-        isFollowing = false;
-        document.getElementById('followBtn').innerText = "RESUME FOLLOW";
+        isDragging = true; dragStartX = e.touches[0].clientX; dragStartCameraX = cameraX;
+        isFollowing = false; document.getElementById('followBtn').innerText = "RESUME FOLLOW";
         document.getElementById('followBtn').style.color = "#666";
     });
-
     window.addEventListener('touchmove', (e) => {
         if (!isDragging) return;
-        const deltaX = dragStartX - e.touches[0].clientX;
-        cameraX = Math.max(0, dragStartCameraX + deltaX);
+        cameraX = Math.max(0, dragStartCameraX + (dragStartX - e.touches[0].clientX));
     });
-
     window.addEventListener('touchend', () => { isDragging = false; });
-
 
     function updateSidebar() {
         let hS = '', hI = '';
@@ -324,44 +316,33 @@
         `).join('') || '<div style="padding:20px; text-align:center; font-size:10px; color:#444;">ANALYZING...</div>';
     }
 
-    // --- NEW DRAW FUNCTION (SCROLLABLE) ---
     function draw() {
         requestAnimationFrame(draw);
         const dpr = window.devicePixelRatio || 1;
-        
-        // Use logical width/height for calculations
         const w = canvas.width / dpr;
         const h = canvas.height / dpr;
         
         ctx.fillStyle = "#050505";
         ctx.fillRect(0, 0, w, h);
 
-        // --- CAMERA TRANSFORM ---
         ctx.save();
         ctx.translate(-cameraX, 0);
 
-        // Determine visible columns based on cameraX
         const startCol = Math.floor(cameraX / CELL_W);
         const endCol = Math.floor((cameraX + w) / CELL_W) + 1;
 
         for (let i = startCol; i <= endCol; i++) {
             const x = i * CELL_W;
+            // Handle wrapping for infinite scroll illusion if needed, but strictly 
+            // mapping to currentColumn for now is safest.
             const colData = matrixData[i];
 
-            // Draw Column Grid Line
             ctx.strokeStyle = "#1a1a1a";
             ctx.lineWidth = 0.5;
             ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
 
-            // Draw Rows
             for (let r = 0; r < 60; r++) {
                 const y = r * CELL_H;
-                
-                // Draw Row Grid Line (only needed once, but simple here)
-                if(i === startCol) {
-                     ctx.beginPath(); ctx.moveTo(cameraX, y); ctx.lineTo(cameraX + w, y); ctx.stroke();
-                }
-
                 if (colData && colData[r]) {
                     const cell = colData[r];
                     let bg = '#0a0a0a'; 
@@ -384,13 +365,11 @@
                 }
             }
 
-            // Highlight Active Column
             if (i === currentColumn) {
                 ctx.strokeStyle = "rgba(255, 204, 0, 0.3)";
                 ctx.lineWidth = 1;
                 ctx.strokeRect(x, 0, CELL_W, 60*CELL_H);
                 
-                // Active Scanner
                 const scannerY = activeSecond * CELL_H;
                 ctx.fillStyle = "rgba(255, 204, 0, 0.2)";
                 ctx.fillRect(x, scannerY, CELL_W, CELL_H);
@@ -398,7 +377,6 @@
                 ctx.strokeRect(x, scannerY, CELL_W, CELL_H);
             }
         }
-        
         ctx.restore();
     }
 
@@ -435,10 +413,7 @@
     function connect() {
         let ws = new WebSocket(DERIV_WS);
         ws.onopen = () => ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
-        ws.onmessage = (m) => { 
-            const d = JSON.parse(m.data); 
-            if (d.tick) handleTick(d.tick); 
-        };
+        ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.tick) handleTick(d.tick); };
         ws.onclose = () => setTimeout(connect, 3000);
     }
 
