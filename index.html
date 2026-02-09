@@ -1,312 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>EURUSD WIN PREDICTOR</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+        :root {
+            --bg-primary: #050505;
+            --bg-secondary: #111111;
+            --border-medium: #333333;
+            --text-primary: #e0e0e0;
+            --text-dim: #666666;
+            --accent-red: #ff3b30;
+            --accent-green: #34c759;
+            --accent-gold: #ffcc00;
+            --bar-size: 30px; 
+            --w-streak: 60px;
+            --w-index: 60px;
+            --w-hunter: 220px;
+            --w-sidebar: calc(var(--w-streak) + var(--w-index) + var(--w-hunter));
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        
+        body, html { 
+            background-color: var(--bg-primary); /* Ensures black bg */
+            width: 100vw; 
+            height: 100vh; 
+            overflow: hidden; 
+            font-family: 'JetBrains Mono', monospace; 
+            color: var(--text-primary); 
+        }
+
+        #ui { 
+            position: fixed; top: 0; left: 0; right: 0; height: var(--bar-size); 
+            background: var(--bg-secondary); border-bottom: 1px solid var(--border-medium); 
+            padding: 0 15px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; 
+        }
+
+        #app-container { display: flex; height: 100vh; padding-top: var(--bar-size); }
+        
+        #stage { flex: 1; position: relative; background: var(--bg-primary); overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #sidebar { 
+            width: var(--w-sidebar); background: var(--bg-secondary); 
+            border-left: 1px solid var(--border-medium); display: flex; height: 100%; 
+        }
+
+        #col-streak { width: var(--w-streak); border-right: 1px solid var(--border-medium); overflow: hidden; }
+        #col-index { width: var(--w-index); border-right: 1px solid var(--border-medium); background: var(--bg-secondary); overflow: hidden; }
+        #col-hunter { width: var(--w-hunter); display: flex; flex-direction: column; background: var(--bg-secondary); }
+
+        .streak-row { display: flex; width: 100%; border-bottom: 1px solid #222; cursor: pointer; }
+        .streak-col { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
+        .red-side { background: rgba(255, 59, 48, 0.05); color: var(--accent-red); }
+        .green-side { background: rgba(52, 199, 89, 0.05); color: var(--accent-green); }
+        .index-cell { width: 100%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--text-dim); border-bottom: 1px solid #222; }
+
+        .hunter-body { flex: 1; overflow-y: auto; padding-bottom: 50px; }
+        .h-row { padding: 12px 10px; border-bottom: 1px solid var(--border-medium); cursor: pointer; transition: 0.2s; }
+        .h-row:hover { background: #1a1a1a; }
+
+        @keyframes pulse-gold {
+            0% { opacity: 0.8; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.02); color: #fff; }
+            100% { opacity: 0.8; transform: scale(1); }
+        }
+        .pulse-val { animation: pulse-gold 1.5s infinite; color: var(--accent-gold); font-weight: 800; }
+
+        /* Modal */
+        #modalOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; backdrop-filter: blur(4px); }
+        #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; height: 450px; background: var(--bg-secondary); border: 1px solid var(--border-medium); z-index: 2001; flex-direction: column; }
+
+        /* Error/Loading State */
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; font-size: 12px; pointer-events: none; }
+        #error-log { position: fixed; bottom: 0; left: 0; width: 100%; background: #300; color: #fff; font-size: 10px; padding: 5px; display: none; z-index: 9999; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div style="font-weight:800; font-size:11px; letter-spacing:1px;">WALLSPECTRUM <span style="color:var(--accent-gold)">WIN PREDICTOR</span></div>
+    <div id="priceTag" style="color:var(--accent-green); font-weight:bold; font-size:13px; font-variant-numeric: tabular-nums;">CONNECTING...</div>
+</div>
+
+<div id="app-container">
+    <div id="stage">
+        <canvas id="matrixCanvas"></canvas>
+        <div id="loading">INITIALIZING GRAPHICS...</div>
+    </div>
+    <div id="sidebar">
+        <div id="col-streak"></div>
+        <div id="col-index"></div>
+        <div id="col-hunter">
+            <div style="padding:8px; font-size:9px; color:var(--text-dim); border-bottom:1px solid var(--border-medium); text-align:center; font-weight:bold;">TOP SIGNALS</div>
+            <div class="hunter-body" id="hunterList"></div>
+        </div>
+    </div>
+</div>
+
+<div id="modalOverlay" onclick="closeModal()"></div>
+<div id="modal">
+    <div id="modalTitle" style="padding:12px; text-align:center; border-bottom:1px solid var(--border-medium); font-size:11px; font-weight:800; color:var(--accent-gold);"></div>
+    <div style="flex:1; display:flex; overflow:hidden;">
+        <div id="rD" style="flex:1; overflow-y:auto; border-right:1px solid #222;"></div>
+        <div id="gD" style="flex:1; overflow-y:auto;"></div>
+    </div>
+    <button onclick="closeModal()" style="padding:10px; background:transparent; border:none; border-top:1px solid var(--border-medium); color:var(--text-dim); cursor:pointer; font-family:inherit; font-size:10px;">CLOSE</button>
+</div>
+
+<div id="error-log"></div>
+
 <script>
-    const canvas = document.getElementById('matrixCanvas');
-    const ctx = canvas.getContext('2d', { alpha: false });
-    const SYMBOL = "frxEURUSD";
-    const DERIV_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+    // --- ERROR HANDLING ---
+    window.onerror = function(msg, url, line) {
+        const el = document.getElementById('error-log');
+        el.style.display = 'block';
+        el.innerHTML += `<div>Error: ${msg} (Line ${line})</div>`;
+    };
 
-    // --- CONFIGURATION ---
-    const CELL_W = 45;      // Width of the column
-    let CELL_H = 16;        // Height of the rows (calculated dynamically)
-    const MAX_COLS = 200;   // How many columns to keep in memory
-
-    // --- STATE ---
-    let matrixData = {};
-    let currentColumn = 0;
-    let activeSecond = 0;   // To track the "per second" movement
-    let lastPrice = 0;
-
-    // --- ENGINE INITIALIZATION ---
-    // We track 60 separate strategies (one for each second 00-59)
-    const ENGINE = Array.from({ length: 60 }, (_, i) => ({
-        id: i,
-        bucket_ts: 0,
-        open: 0,
-        close: 0,
-        prev_color: 'Gray',
-        prev_streak: 0,
-        live_color: 'Gray',
-        live_streak: 0,
-        history: { Red: {}, Green: {} }
-    }));
-
-    const pad = (n) => String(n).padStart(2, '0');
-
-    // --- LOGIC: PROCESS PRICE ---
-    function processTick(price, epoch) {
-        document.getElementById('priceTag').innerText = price.toFixed(5);
+    // --- MAIN SCRIPT ---
+    document.addEventListener("DOMContentLoaded", () => {
+        const canvas = document.getElementById('matrixCanvas');
+        if (!canvas) { console.error("Canvas not found!"); return; }
         
-        // Flash price color
-        const tag = document.getElementById('priceTag');
-        tag.style.color = price > lastPrice ? '#34c759' : (price < lastPrice ? '#ff3b30' : '#e0e0e0');
-        lastPrice = price;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const SYMBOL = "frxEURUSD";
+        const DERIV_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
 
-        activeSecond = epoch % 60; // Track which row is active (0-59)
+        // --- CONFIGURATION ---
+        const CELL_W = 45;      
+        let CELL_H = 16;        
+        
+        // --- STATE ---
+        let matrixData = {};
+        let currentColumn = 0;
+        let activeSecond = 0;
+        let lastPrice = 0;
 
-        ENGINE.forEach(s => {
-            // Logic: Is this tick part of a new minute for this specific offset?
-            const bucket = Math.floor((epoch - s.id) / 60) * 60 + s.id;
+        // --- ENGINE ---
+        const ENGINE = Array.from({ length: 60 }, (_, i) => ({
+            id: i,
+            bucket_ts: 0,
+            open: 0,
+            close: 0,
+            prev_color: 'Gray',
+            prev_streak: 0,
+            live_color: 'Gray',
+            live_streak: 0,
+            history: { Red: {}, Green: {} }
+        }));
 
-            if (bucket > s.bucket_ts) {
-                // If we just finished a candle for this offset
-                if (s.bucket_ts !== 0) {
-                    const color = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
-                    
-                    if (color !== 'Gray') {
-                        if (color === s.prev_color) {
-                            s.prev_streak++;
+        const pad = (n) => String(n).padStart(2, '0');
+
+        function processTick(price, epoch) {
+            document.getElementById('priceTag').innerText = price.toFixed(5);
+            document.getElementById('loading').style.display = 'none'; // Hide loading text
+            
+            const tag = document.getElementById('priceTag');
+            tag.style.color = price > lastPrice ? '#34c759' : (price < lastPrice ? '#ff3b30' : '#e0e0e0');
+            lastPrice = price;
+
+            activeSecond = epoch % 60; 
+
+            ENGINE.forEach(s => {
+                const bucket = Math.floor((epoch - s.id) / 60) * 60 + s.id;
+
+                if (bucket > s.bucket_ts) {
+                    if (s.bucket_ts !== 0) {
+                        const color = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
+                        
+                        if (color !== 'Gray') {
+                            if (color === s.prev_color) s.prev_streak++;
+                            else { s.prev_color = color; s.prev_streak = 1; }
+                            s.history[color][s.prev_streak] = (s.history[color][s.prev_streak] || 0) + 1;
                         } else {
-                            s.prev_color = color;
-                            s.prev_streak = 1;
-                        }
-                        // Save to history
-                        s.history[color][s.prev_streak] = (s.history[color][s.prev_streak] || 0) + 1;
-                    } else {
-                        // Reset if neutral
-                        s.prev_streak = 0;
-                        s.prev_color = 'Gray';
-                    }
-                }
-                s.bucket_ts = bucket;
-                s.open = price;
-                s.close = price;
-            } else {
-                // Still inside the candle, just update close price
-                s.close = price;
-            }
-
-            // Calculate "Live" status for the visual matrix
-            const lColor = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
-            
-            if (lColor === 'Gray') {
-                s.live_streak = s.prev_streak;
-                s.live_color = s.prev_color; // Keep previous color visually or go gray
-            } else if (lColor === s.prev_color) {
-                s.live_streak = s.prev_streak + 1;
-                s.live_color = lColor;
-            } else {
-                s.live_streak = 1;
-                s.live_color = lColor;
-            }
-        });
-    }
-
-    // --- MAIN LOOP ---
-    function handleTick(tick) {
-        const now = tick.epoch;
-        processTick(tick.quote, now);
-
-        // Determine which column we are in (Time / 60)
-        currentColumn = Math.floor(now / 60);
-
-        if (!matrixData[currentColumn]) matrixData[currentColumn] = {};
-
-        // Update the matrix data for the CURRENT column instantly
-        ENGINE.forEach(s => {
-            matrixData[currentColumn][s.id] = {
-                c: s.close > s.open ? (s.close > s.open ? 'G' : 'R') : (s.close < s.open ? 'R' : 'N'), 
-                s: s.live_streak,
-                active: s.id === activeSecond // Mark if this is the active second
-            };
-        });
-
-        updateSidebar();
-    }
-
-    // --- UI UPDATES (SIDEBAR) ---
-    function updateSidebar() {
-        let hS = '', hI = '';
-        const liveData = matrixData[currentColumn] || {};
-
-        for (let r = 0; r < 60; r++) {
-            const cell = liveData[r];
-            let rVal = '--', gVal = '--';
-            let isRed = false, isGreen = false;
-            let isActive = (r === activeSecond); // Highlight the active row
-
-            // Get live streaks from Engine directly for accuracy
-            const eng = ENGINE[r];
-            const liveC = eng.close > eng.open ? 'Green' : (eng.close < eng.open ? 'Red' : 'Gray');
-            const val = eng.live_streak > 0 ? eng.live_streak : '--';
-
-            if(liveC === 'Red') { rVal = val; isRed = true; }
-            if(liveC === 'Green') { gVal = val; isGreen = true; }
-
-            // Streak Panel
-            const rowStyle = isActive ? 'border: 1px solid var(--accent-gold); background: #222;' : '';
-            
-            hS += `<div class="streak-row" onclick="openModal(${r})" style="height:${CELL_H}px; ${rowStyle}">
-                <div class="streak-col red-side" style="${isRed ? 'opacity:1; color:#fff; background:var(--accent-red);' : ''}">${rVal}</div>
-                <div class="streak-col green-side" style="${isGreen ? 'opacity:1; color:#fff; background:var(--accent-green);' : ''}">${gVal}</div>
-            </div>`;
-
-            // Index Panel
-            hI += `<div class="index-cell" style="height:${CELL_H}px; ${isActive ? 'color:var(--accent-gold); font-weight:900;' : ''}">
-                ${pad(r)}_${pad(r)}
-            </div>`;
-        }
-        document.getElementById('col-streak').innerHTML = hS;
-        document.getElementById('col-index').innerHTML = hI;
-        
-        scanBestWalls();
-    }
-
-    // --- HUNTER ALGORITHM (RIGHT PANEL) ---
-    function scanBestWalls() {
-        let walls = [];
-        ENGINE.forEach(s => {
-            ['Red', 'Green'].forEach(color => {
-                const counts = s.history[color];
-                // Check streaks 2 through 15
-                for (let x = 2; x < 15; x++) {
-                    const cur = counts[x] || 0;
-                    const nxt = counts[x + 1] || 0;
-                    if (cur >= 1) { // Show even low volume initially
-                        const wr = (1 - (nxt / cur)) * 100;
-                        const score = wr * Math.log10(cur + 1); // Weighted score
-                        if(wr > 0) {
-                            walls.push({
-                                id: s.id, color, level: `X${x}→X${x+1}`, 
-                                wr, cur, score, 
-                                pred: color === 'Red' ? 'CALL (Reversal)' : 'PUT (Reversal)' 
-                            });
+                            s.prev_streak = 0; s.prev_color = 'Gray';
                         }
                     }
-                }
+                    s.bucket_ts = bucket; s.open = price; s.close = price;
+                } else { s.close = price; }
+
+                const lColor = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
+                if (lColor === 'Gray') { s.live_streak = s.prev_streak; s.live_color = s.prev_color; }
+                else if (lColor === s.prev_color) { s.live_streak = s.prev_streak + 1; s.live_color = lColor; }
+                else { s.live_streak = 1; s.live_color = lColor; }
             });
-        });
+        }
 
-        walls.sort((a, b) => b.score - a.score);
+        function handleTick(tick) {
+            const now = tick.epoch;
+            processTick(tick.quote, now);
+            currentColumn = Math.floor(now / 60);
 
-        document.getElementById('hunterList').innerHTML = walls.slice(0, 15).map(w => `
-            <div class="h-row" onclick="openModal(${w.id})">
-                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                    <span style="color:var(--accent-gold); font-size:11px; font-weight:800;">${pad(w.id)}_${pad(w.id)}</span>
-                    <span class="pulse-val" style="font-size:11px;">${w.wr.toFixed(0)}% WIN</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; font-size:10px;">
-                    <span style="color:${w.color==='Red'?'var(--accent-red)':'var(--accent-green)'}; font-weight:bold;">${w.level}</span>
-                    <span style="color:var(--text-dim);">VOL: ${w.cur}</span>
-                </div>
-            </div>
-        `).join('') || '<div style="padding:20px; text-align:center; font-size:10px; color:#444;">GATHERING DATA...</div>';
-    }
+            if (!matrixData[currentColumn]) matrixData[currentColumn] = {};
 
-    // --- DRAWING ENGINE (CANVAS) ---
-    function draw() {
-        requestAnimationFrame(draw);
-        
-        const dpr = window.devicePixelRatio || 1;
-        const w = canvas.width / dpr;
-        const h = canvas.height / dpr;
-        
-        // Clear background
-        ctx.fillStyle = "#050505";
-        ctx.fillRect(0, 0, w, h);
+            ENGINE.forEach(s => {
+                matrixData[currentColumn][s.id] = {
+                    c: s.close > s.open ? (s.close > s.open ? 'G' : 'R') : (s.close < s.open ? 'R' : 'N'), 
+                    s: s.live_streak
+                };
+            });
+            updateSidebar();
+        }
 
-        // Viewport Logic
-        const maxVisibleCols = Math.ceil(w / CELL_W) + 1;
-        // Align current column to the right side
-        const startCol = currentColumn - maxVisibleCols + 2;
+        function updateSidebar() {
+            let hS = '', hI = '';
+            const liveData = matrixData[currentColumn] || {};
 
-        for (let i = 0; i < maxVisibleCols; i++) {
-            const colIdx = startCol + i;
-            const x = i * CELL_W;
-
-            if (colIdx < 0) continue; // Don't draw negative time
-
-            const colData = matrixData[colIdx];
-            
-            // Draw 60 Rows
             for (let r = 0; r < 60; r++) {
-                const y = r * CELL_H;
+                const cell = liveData[r];
+                let rVal = '--', gVal = '--';
+                let isRed = false, isGreen = false;
+                let isActive = (r === activeSecond); 
+
+                const eng = ENGINE[r];
+                const liveC = eng.close > eng.open ? 'Green' : (eng.close < eng.open ? 'Red' : 'Gray');
+                const val = eng.live_streak > 0 ? eng.live_streak : '--';
+
+                if(liveC === 'Red') { rVal = val; isRed = true; }
+                if(liveC === 'Green') { gVal = val; isGreen = true; }
+
+                const rowStyle = isActive ? 'border: 1px solid var(--accent-gold); background: #222;' : '';
                 
-                // Default: Empty Grid Slot
-                ctx.strokeStyle = "#1a1a1a";
-                ctx.lineWidth = 0.5;
-                ctx.strokeRect(x, y, CELL_W, CELL_H);
+                hS += `<div class="streak-row" onclick="openModal(${r})" style="height:${CELL_H}px; ${rowStyle}">
+                    <div class="streak-col red-side" style="${isRed ? 'opacity:1; color:#fff; background:var(--accent-red);' : ''}">${rVal}</div>
+                    <div class="streak-col green-side" style="${isGreen ? 'opacity:1; color:#fff; background:var(--accent-green);' : ''}">${gVal}</div>
+                </div>`;
 
-                if (colData && colData[r]) {
-                    const cell = colData[r];
-                    let bg = '#111'; // Neutral background
-                    let txtColor = '#333';
-                    
-                    // Determine Colors
-                    if (cell.c === 'R') { bg = 'rgba(255, 59, 48, 0.2)'; txtColor = '#ff3b30'; }
-                    if (cell.c === 'G') { bg = 'rgba(52, 199, 89, 0.2)'; txtColor = '#34c759'; }
-                    if (cell.c === 'N') { bg = '#0a0a0a'; txtColor = '#222'; } // Neutral
+                hI += `<div class="index-cell" style="height:${CELL_H}px; ${isActive ? 'color:var(--accent-gold); font-weight:900;' : ''}">${pad(r)}_${pad(r)}</div>`;
+            }
+            document.getElementById('col-streak').innerHTML = hS;
+            document.getElementById('col-index').innerHTML = hI;
+            scanBestWalls();
+        }
 
-                    // Fill Box
-                    ctx.fillStyle = bg;
-                    ctx.fillRect(x + 1, y + 1, CELL_W - 2, CELL_H - 2);
+        function scanBestWalls() {
+            let walls = [];
+            ENGINE.forEach(s => {
+                ['Red', 'Green'].forEach(color => {
+                    const counts = s.history[color];
+                    for (let x = 2; x < 15; x++) {
+                        const cur = counts[x] || 0;
+                        const nxt = counts[x + 1] || 0;
+                        if (cur >= 1) { 
+                            const wr = (1 - (nxt / cur)) * 100;
+                            const score = wr * Math.log10(cur + 1); 
+                            if(wr > 0) {
+                                walls.push({
+                                    id: s.id, color, level: `X${x}→X${x+1}`, 
+                                    wr, cur, score, 
+                                    pred: color === 'Red' ? 'CALL (Reversal)' : 'PUT (Reversal)' 
+                                });
+                            }
+                        }
+                    }
+                });
+            });
 
-                    // Draw Streak Number
-                    if (cell.s > 0) {
-                        ctx.fillStyle = txtColor;
-                        ctx.font = "bold 10px 'JetBrains Mono'";
-                        ctx.textAlign = "center";
-                        ctx.textBaseline = "middle";
-                        ctx.fillText(cell.s, x + CELL_W / 2, y + CELL_H / 2);
+            walls.sort((a, b) => b.score - a.score);
+            document.getElementById('hunterList').innerHTML = walls.slice(0, 15).map(w => `
+                <div class="h-row" onclick="openModal(${w.id})">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:var(--accent-gold); font-size:11px; font-weight:800;">${pad(w.id)}_${pad(w.id)}</span>
+                        <span class="pulse-val" style="font-size:11px;">${w.wr.toFixed(0)}% WIN</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:10px;">
+                        <span style="color:${w.color==='Red'?'var(--accent-red)':'var(--accent-green)'}; font-weight:bold;">${w.level}</span>
+                        <span style="color:var(--text-dim);">VOL: ${w.cur}</span>
+                    </div>
+                </div>
+            `).join('') || '<div style="padding:20px; text-align:center; font-size:10px; color:#444;">ANALYZING...</div>';
+        }
+
+        function draw() {
+            requestAnimationFrame(draw);
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvas.width / dpr;
+            const h = canvas.height / dpr;
+            
+            ctx.fillStyle = "#050505";
+            ctx.fillRect(0, 0, w, h);
+
+            const maxVisibleCols = Math.ceil(w / CELL_W) + 1;
+            const startCol = currentColumn - maxVisibleCols + 2;
+
+            for (let i = 0; i < maxVisibleCols; i++) {
+                const colIdx = startCol + i;
+                const x = i * CELL_W;
+
+                if (colIdx < 0) continue; 
+
+                const colData = matrixData[colIdx];
+                for (let r = 0; r < 60; r++) {
+                    const y = r * CELL_H;
+                    ctx.strokeStyle = "#1a1a1a";
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeRect(x, y, CELL_W, CELL_H);
+
+                    if (colData && colData[r]) {
+                        const cell = colData[r];
+                        let bg = '#0a0a0a'; 
+                        let txtColor = '#333';
+                        
+                        if (cell.c === 'R') { bg = 'rgba(255, 59, 48, 0.2)'; txtColor = '#ff3b30'; }
+                        if (cell.c === 'G') { bg = 'rgba(52, 199, 89, 0.2)'; txtColor = '#34c759'; }
+                        
+                        ctx.fillStyle = bg;
+                        ctx.fillRect(x + 1, y + 1, CELL_W - 2, CELL_H - 2);
+
+                        if (cell.s > 0) {
+                            ctx.fillStyle = txtColor;
+                            ctx.font = "bold 10px 'JetBrains Mono'";
+                            ctx.textAlign = "center";
+                            ctx.textBaseline = "middle";
+                            ctx.fillText(cell.s, x + CELL_W / 2, y + CELL_H / 2);
+                        }
                     }
                 }
-            }
 
-            // Draw "Current Column" Highlight
-            if (colIdx === currentColumn) {
-                ctx.strokeStyle = "rgba(255, 204, 0, 0.2)";
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x, 0, CELL_W, h);
-                
-                // Draw Active Second Scanner (The Yellow Box)
-                const scannerY = activeSecond * CELL_H;
-                ctx.fillStyle = "rgba(255, 204, 0, 0.3)";
-                ctx.fillRect(x, scannerY, CELL_W, CELL_H);
-                ctx.strokeStyle = "#ffcc00";
-                ctx.strokeRect(x, scannerY, CELL_W, CELL_H);
+                if (colIdx === currentColumn) {
+                    ctx.strokeStyle = "rgba(255, 204, 0, 0.2)";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, 0, CELL_W, h);
+                    
+                    const scannerY = activeSecond * CELL_H;
+                    ctx.fillStyle = "rgba(255, 204, 0, 0.15)";
+                    ctx.fillRect(x, scannerY, CELL_W, CELL_H);
+                    ctx.strokeStyle = "#ffcc00";
+                    ctx.strokeRect(x, scannerY, CELL_W, CELL_H);
+                }
             }
         }
-    }
 
-    // --- MODAL & SYSTEM ---
-    function openModal(id) {
-        const s = ENGINE[id];
-        document.getElementById('modalTitle').innerText = `OFFSET ${pad(id)} HISTORY`;
-        const render = (obj, c) => Object.keys(obj).sort((a,b)=>b-a).map(k => 
-            `<div style="padding:8px; border-bottom:1px solid #222; font-size:11px; display:flex; justify-content:space-between;">
-                <span style="color:${c}; font-weight:bold;">Streak ${k}</span>
-                <span>${obj[k]} hits</span>
-            </div>`).join('');
-        
-        document.getElementById('rD').innerHTML = render(s.history.Red, '#ff3b30');
-        document.getElementById('gD').innerHTML = render(s.history.Green, '#34c759');
-        document.getElementById('modal').style.display = 'flex';
-        document.getElementById('modalOverlay').style.display = 'block';
-    }
-
-    window.closeModal = () => {
-        document.getElementById('modal').style.display = 'none';
-        document.getElementById('modalOverlay').style.display = 'none';
-    };
-
-    window.onresize = () => {
-        const stage = document.getElementById('stage');
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = stage.clientWidth * dpr;
-        canvas.height = stage.clientHeight * dpr;
-        ctx.scale(dpr, dpr);
-        // Force exactly 60 rows
-        CELL_H = stage.clientHeight / 60;
-        updateSidebar();
-    };
-
-    function connect() {
-        let ws = new WebSocket(DERIV_WS);
-        ws.onopen = () => ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
-        ws.onmessage = (m) => { 
-            const d = JSON.parse(m.data); 
-            if (d.tick) handleTick(d.tick); 
+        window.openModal = function(id) {
+            const s = ENGINE[id];
+            document.getElementById('modalTitle').innerText = `OFFSET ${pad(id)} HISTORY`;
+            const render = (obj, c) => Object.keys(obj).sort((a,b)=>b-a).map(k => 
+                `<div style="padding:8px; border-bottom:1px solid #222; font-size:11px; display:flex; justify-content:space-between;">
+                    <span style="color:${c}; font-weight:bold;">Streak ${k}</span>
+                    <span>${obj[k]} hits</span>
+                </div>`).join('');
+            document.getElementById('rD').innerHTML = render(s.history.Red, '#ff3b30');
+            document.getElementById('gD').innerHTML = render(s.history.Green, '#34c759');
+            document.getElementById('modal').style.display = 'flex';
+            document.getElementById('modalOverlay').style.display = 'block';
         };
-        ws.onclose = () => setTimeout(connect, 3000);
-    }
 
-    window.onload = () => { window.onresize(); connect(); draw(); };
+        window.closeModal = function() {
+            document.getElementById('modal').style.display = 'none';
+            document.getElementById('modalOverlay').style.display = 'none';
+        };
+
+        window.onresize = () => {
+            const stage = document.getElementById('stage');
+            if(!stage) return;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = stage.clientWidth * dpr;
+            canvas.height = stage.clientHeight * dpr;
+            ctx.scale(dpr, dpr);
+            CELL_H = stage.clientHeight / 60;
+            updateSidebar();
+        };
+
+        function connect() {
+            let ws = new WebSocket(DERIV_WS);
+            ws.onopen = () => ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+            ws.onmessage = (m) => { 
+                const d = JSON.parse(m.data); 
+                if (d.tick) handleTick(d.tick); 
+            };
+            ws.onclose = () => setTimeout(connect, 3000);
+            ws.onerror = (e) => console.log("WS Error", e);
+        }
+
+        // Init
+        window.onresize();
+        connect();
+        draw();
+    });
 </script>
+
+</body>
+</html>
