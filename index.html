@@ -1,139 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>EURUSD ENTERPRISE - WIN PREDICTOR</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-
-:root{
-  --bg-primary: #050505;
-  --bg-secondary: #111111;
-  --border-medium: #333333;
-  --text-primary: #e0e0e0;
-  --text-dim: #666666;
-  --accent-red: #ff3b30;
-  --accent-green: #34c759;
-  --accent-gold: #ffcc00;
-  --bar-size: 30px; 
-  --w-streak: 50px;
-  --w-index: 55px;
-  --w-hunter: 200px;
-  --w-sidebar: calc(var(--w-streak) + var(--w-index) + var(--w-hunter));
-}
-
-*{margin:0;padding:0;box-sizing:border-box}
-body,html{ background:var(--bg-primary); width:100vw; height:100vh; overflow:hidden; font-family: 'JetBrains Mono', monospace; color: var(--text-primary); }
-
-@keyframes pulse-gold {
-  0% { text-shadow: 0 0 0 rgba(255, 204, 0, 0.4); transform: scale(1); }
-  50% { text-shadow: 0 0 12px rgba(255, 204, 0, 0.9); transform: scale(1.05); color:#fff; }
-  100% { text-shadow: 0 0 0 rgba(255, 204, 0, 0.4); transform: scale(1); }
-}
-.pulse-val { animation: pulse-gold 1.5s infinite ease-in-out; font-weight: 800; color: var(--accent-gold); }
-
-#ui{ position:fixed; top:0; left:0; right:0; height:var(--bar-size); background:var(--bg-secondary); border-bottom:1px solid var(--border-medium); padding:0 10px; z-index:1000; display:flex; align-items:center; justify-content:space-between; }
-#app-container { display: flex; height: 100vh; padding-top: var(--bar-size); }
-#stage { flex: 1; position: relative; background: var(--bg-primary); overflow: hidden; }
-canvas { display:block; }
-#sidebar { width: var(--w-sidebar); background: var(--bg-secondary); border-left: 1px solid var(--border-medium); display: flex; flex-direction: row; height: 100%; }
-
-#col-streak { width: var(--w-streak); border-right: 1px solid var(--border-medium); overflow: hidden; }
-#col-index { width: var(--w-index); border-right: 1px solid var(--border-medium); background: var(--bg-secondary); overflow: hidden; }
-#col-hunter { width: var(--w-hunter); display: flex; flex-direction: column; background: var(--bg-secondary); border-left: 1px solid var(--border-medium); }
-
-.streak-row{display:flex;width:100%;border-bottom:1px solid var(--border-medium);cursor:pointer; transition: background 0.2s;}
-.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;}
-.red-side{background:rgba(255, 59, 48, 0.1); color:var(--accent-red);}
-.green-side{background:rgba(52, 199, 89, 0.1); color:var(--accent-green);}
-.index-cell{width:100%; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:var(--text-dim); border-bottom:1px solid var(--border-medium);}
-
-.hunter-body { flex: 1; overflow-y: auto; }
-.h-row { display: flex; flex-direction: column; padding: 12px 8px; border-bottom: 1px solid var(--border-medium); cursor: pointer; transition: 0.2s; position: relative; }
-.h-row:hover { background: #1a1a1a; }
-.h-row::before { content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 2px; background: transparent; transition: 0.2s; }
-.h-row:hover::before { background: var(--accent-gold); }
-
-#modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:2000;backdrop-filter:blur(4px);}
-#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:400px;background:var(--bg-secondary);border:1px solid var(--border-medium);z-index:2001;border-radius:4px;flex-direction:column;overflow:hidden;}
-</style>
-</head>
-<body>
-
-<div id="ui">
-  <div style="font-weight:800; font-size:11px;">WALLSPECTRUM <span style="color:var(--accent-gold)">WIN PREDICTOR</span></div>
-  <div id="priceTag" style="color:var(--accent-green); font-weight:bold; font-size:12px;">--.-----</div>
-</div>
-
-<div id="app-container">
-  <div id="stage"><canvas id="matrixCanvas"></canvas></div>
-  <div id="sidebar">
-    <div id="col-streak"></div>
-    <div id="col-index"></div>
-    <div id="col-hunter"><div class="hunter-body" id="hunterList"></div></div>
-  </div>
-</div>
-
-<div id="modalOverlay" onclick="closeModal()"></div>
-<div id="modal">
-  <div id="modalTitle" style="padding:10px; text-align:center; background:var(--bg-secondary); border-bottom:1px solid var(--border-medium); color:var(--text-primary); font-size:11px; font-weight:bold;"></div>
-  <div style="flex:1; display:flex;">
-    <div id="rD" style="flex:1; overflow-y:auto; background:var(--bg-primary); border-right:1px solid var(--border-medium);"></div>
-    <div id="gD" style="flex:1; overflow-y:auto; background:var(--bg-primary);"></div>
-  </div>
-</div>
-
 <script>
-const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false});
-const SYMBOL="frxEURUSD", DERIV_WS="wss://ws.derivws.com/websockets/v3?app_id=1089";
-let matrixData={}, currentColumn=0;
-const CELL_W=50, TOTAL_ROWS=60, MAX_COLS=7200, BAR_SIZE=25; 
-let CELL_H=16;
+const canvas = document.getElementById('matrixCanvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const SYMBOL = "frxEURUSD";
+const DERIV_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+
+// Configuration
+const CELL_W = 40; // Width of one column
+const TOTAL_ROWS = 60;
+const MAX_COLS = 7200;
+const BAR_SIZE = 30; // Matches CSS var --bar-size
+
+// State
+let matrixData = {};
+let currentColumn = 0;
+let CELL_H = 16; // Calculated dynamically
+let ws = null;
 
 // Logic Engine Array (60 Offsets)
-const ENGINE = Array.from({length: 60}, (_, i) => ({
-    id: i, bucket_ts: 0, open: 0, close: 0,
-    prev_color: 'Gray', prev_streak: 0,
-    live_color: 'Gray', live_streak: 0,
+const ENGINE = Array.from({ length: 60 }, (_, i) => ({
+    id: i,
+    bucket_ts: 0,
+    open: 0,
+    close: 0,
+    prev_color: 'Gray',
+    prev_streak: 0,
+    live_color: 'Gray',
+    live_streak: 0,
     history: { Red: {}, Green: {} }
 }));
 
-const pad=(n)=>String(n).padStart(2,'0');
+const pad = (n) => String(n).padStart(2, '0');
 
 function processTick(price, epoch) {
     document.getElementById('priceTag').innerText = price.toFixed(5);
-    
+
     ENGINE.forEach(s => {
-        // PRESERVED: FLOOR() logic from Python Enterprise.py
+        // Calculate the specific 1-minute bucket for this offset
         const bucket = Math.floor((epoch - s.id) / 60) * 60 + s.id;
 
         if (bucket > s.bucket_ts) {
+            // New minute logic for this specific offset
             if (s.bucket_ts !== 0) {
                 const color = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
                 if (color !== 'Gray') {
-                    if (color === s.prev_color) s.prev_streak++;
-                    else { s.prev_color = color; s.prev_streak = 1; }
+                    if (color === s.prev_color) {
+                        s.prev_streak++;
+                    } else {
+                        s.prev_color = color;
+                        s.prev_streak = 1;
+                    }
+                    // Record history
                     s.history[color][s.prev_streak] = (s.history[color][s.prev_streak] || 0) + 1;
                 } else {
-                    s.prev_streak = 0; s.prev_color = 'Gray';
+                    s.prev_streak = 0;
+                    s.prev_color = 'Gray';
                 }
             }
-            s.bucket_ts = bucket; s.open = price; s.close = price;
+            s.bucket_ts = bucket;
+            s.open = price;
+            s.close = price;
         } else {
+            // Update current candle
             s.close = price;
         }
 
+        // Live Streak Calculation
         const lColor = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
-        if (lColor === 'Gray') { s.live_streak = s.prev_streak; s.live_color = s.prev_color; }
-        else if (lColor === s.prev_color) { s.live_streak = s.prev_streak + 1; s.live_color = lColor; }
-        else { s.live_streak = 1; s.live_color = lColor; }
+        if (lColor === 'Gray') {
+            s.live_streak = s.prev_streak;
+            s.live_color = s.prev_color;
+        } else if (lColor === s.prev_color) {
+            s.live_streak = s.prev_streak + 1;
+            s.live_color = lColor;
+        } else {
+            s.live_streak = 1;
+            s.live_color = lColor;
+        }
     });
 }
 
 function scanBestWalls() {
     let topWalls = [];
-
     ENGINE.forEach(s => {
         let bestWall = null;
         let highestScore = -1;
@@ -145,10 +92,7 @@ function scanBestWalls() {
                 const nextCount = counts[x + 1] || 0;
 
                 if (currCount >= 2) {
-                    // PRESERVED: Decay ratio (Win Rate) logic
                     const winRate = (1 - (nextCount / currCount)) * 100;
-                    
-                    // NEW: Best Wall Algorithm (Win Rate weighted by Frequency)
                     const score = winRate * Math.log10(currCount + 1);
 
                     if (score > highestScore) {
@@ -156,7 +100,7 @@ function scanBestWalls() {
                         bestWall = {
                             id: s.id,
                             color: color,
-                            level: `X${x}→X${x+1}`,
+                            level: `X${x}→X${x + 1}`,
                             winRate: winRate,
                             count: currCount,
                             score: score,
@@ -174,77 +118,227 @@ function scanBestWalls() {
 }
 
 function renderHunterPanel(walls) {
-    document.getElementById('hunterList').innerHTML = walls.map(w => `
+    const container = document.getElementById('hunterList');
+    if (!container) return;
+    
+    container.innerHTML = walls.map(w => `
         <div class="h-row" onclick="openModal(${w.id})">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="color:var(--accent-gold); font-weight:800; font-size:12px;">${pad(w.id)}_${pad(w.id)}</span>
                 <span class="pulse-val" style="font-size:11px;">${w.winRate.toFixed(0)}% WIN</span>
             </div>
             <div style="display:flex; justify-content:space-between; margin-top:5px;">
-                <span style="color:${w.color==='Red'?'var(--accent-red)':'var(--accent-green)'}; font-weight:700; font-size:10px;">${w.level}</span>
+                <span style="color:${w.color === 'Red' ? 'var(--accent-red)' : 'var(--accent-green)'}; font-weight:700; font-size:10px;">${w.level}</span>
                 <span style="color:var(--text-dim); font-size:9px;">[ VOL: ${w.count} ]</span>
             </div>
             <div style="margin-top:5px; font-weight:800; font-size:9px; color:var(--accent-gold); letter-spacing:1px;">
                 PREDICTION: ${w.prediction}
             </div>
         </div>
-    `).join('') || '<div style="padding:10px;text-align:center;color:#444;">CALCULATING...</div>';
+    `).join('') || '<div style="padding:10px;text-align:center;color:#444;font-size:10px;">GATHERING DATA...</div>';
 }
 
-function handleTick(tick){
+function handleTick(tick) {
     const now = tick.epoch;
     processTick(tick.quote, now);
+    
+    // Determine column based on minutes
     currentColumn = Math.floor(now / 60) % MAX_COLS;
-    if(!matrixData[currentColumn]) matrixData[currentColumn]={};
-    ENGINE.forEach(s => { matrixData[currentColumn][s.id] = { c: s.live_color[0], s: s.live_streak }; });
-    updateUI();
+    
+    if (!matrixData[currentColumn]) matrixData[currentColumn] = {};
+    
+    // Update live data for this column
+    ENGINE.forEach(s => {
+        matrixData[currentColumn][s.id] = {
+            c: s.live_color[0], // 'R' or 'G' or 'G' (Gray)
+            s: s.live_streak
+        };
+    });
+    
+    updateUI(); // Updates sidebar numbers
 }
 
-function updateUI(){
-    let hS='', hI='';
-    for(let r=0; r<60; r++){
-        let rM=0, gM=0;
-        Object.values(matrixData).forEach(c => { if(c[r]){ if(c[r].c==='R') rM=Math.max(rM,c[r].s); else gM=Math.max(gM,c[r].s); }});
-        hS+=`<div class="streak-row" onclick="openModal(${r})" style="height:${CELL_H}px"><div class="streak-col red-side">${rM||'--'}</div><div class="streak-col green-side">${gM||'--'}</div></div>`;
-        hI+=`<div class="index-cell" style="height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
+// Sidebar Update (Heatmap numbers)
+function updateUI() {
+    let hS = '', hI = '';
+    // We only scan the CURRENT column for sidebar "Live" stats, 
+    // or you can scan the whole matrix. Usually live stats = current column.
+    const liveColData = matrixData[currentColumn] || {};
+
+    for (let r = 0; r < 60; r++) {
+        // Getting max streak from History is hard without iterating everything, 
+        // so here we just show the LIVE streak in the sidebar.
+        let cell = liveColData[r];
+        let rVal = '--', gVal = '--';
+        
+        if(cell) {
+             if(cell.c === 'R') rVal = cell.s;
+             if(cell.c === 'G') gVal = cell.s;
+        }
+
+        hS += `<div class="streak-row" onclick="openModal(${r})" style="height:${CELL_H}px">
+            <div class="streak-col red-side">${rVal}</div>
+            <div class="streak-col green-side">${gVal}</div>
+        </div>`;
+        hI += `<div class="index-cell" style="height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
     }
-    document.getElementById('col-streak').innerHTML=hS; document.getElementById('col-index').innerHTML=hI;
+    document.getElementById('col-streak').innerHTML = hS;
+    document.getElementById('col-index').innerHTML = hI;
     scanBestWalls();
 }
 
-function openModal(sec){
+function openModal(sec) {
     const s = ENGINE[sec];
-    document.getElementById('modalTitle').innerText=`OFFSET ${pad(sec)} DATA`;
-    const render = (obj, clr) => Object.keys(obj).sort((a,b)=>b-a).map(k=>`<div style="padding:8px; border-bottom:1px solid #222; color:${clr}; font-size:10px;"><b>X${k}</b> <span style="float:right">${obj[k]}</span></div>`).join('');
+    document.getElementById('modalTitle').innerText = `OFFSET ${pad(sec)} DATA`;
+    const render = (obj, clr) => Object.keys(obj).sort((a, b) => b - a).map(k => 
+        `<div style="padding:8px; border-bottom:1px solid #222; color:${clr}; font-size:10px;">
+            <b>X${k}</b> <span style="float:right">${obj[k]} hits</span>
+        </div>`).join('');
+    
     document.getElementById('rD').innerHTML = render(s.history.Red, '#ff3b30');
     document.getElementById('gD').innerHTML = render(s.history.Green, '#34c759');
-    document.getElementById('modal').style.display='flex'; document.getElementById('modalOverlay').style.display='block';
+    
+    const m = document.getElementById('modal');
+    const o = document.getElementById('modalOverlay');
+    m.style.display = 'flex';
+    o.style.display = 'block';
 }
 
-function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
+window.closeModal = function() { // Exposed to window for HTML onclick
+    document.getElementById('modal').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
+}
 
-window.onresize=()=>{ 
-  const s=document.getElementById('stage'), dpr=window.devicePixelRatio||1;
-  canvas.width=s.clientWidth*dpr; canvas.height=s.clientHeight*dpr;
-  canvas.style.width=s.clientWidth+'px'; canvas.style.height=s.clientHeight+'px';
-  ctx.scale(dpr,dpr); CELL_H=(s.clientHeight-BAR_SIZE)/60; updateUI();
+window.onresize = () => {
+    const stage = document.getElementById('stage');
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Set internal resolution matches physical pixels
+    canvas.width = stage.clientWidth * dpr;
+    canvas.height = stage.clientHeight * dpr;
+    
+    // Set CSS size matches display size
+    canvas.style.width = stage.clientWidth + 'px';
+    canvas.style.height = stage.clientHeight + 'px';
+    
+    ctx.scale(dpr, dpr);
+    
+    // Calculate Cell Height to fit exactly 60 rows
+    CELL_H = stage.clientHeight / 60;
+    
+    updateUI();
 };
 
-function connect(){
-    let ws=new WebSocket(DERIV_WS);
-    ws.onopen=()=>{ ws.send(JSON.stringify({ticks:SYMBOL, subscribe:1})); };
-    ws.onmessage=(m)=>{ const d=JSON.parse(m.data); if(d.tick) handleTick(d.tick); };
-    ws.onclose=()=>setTimeout(connect, 3000);
+function connect() {
+    ws = new WebSocket(DERIV_WS);
+    ws.onopen = () => {
+        ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+    };
+    ws.onmessage = (m) => {
+        const d = JSON.parse(m.data);
+        if (d.tick) handleTick(d.tick);
+    };
+    ws.onclose = () => setTimeout(connect, 3000);
 }
 
-function draw(){
-    const w=canvas.width/window.devicePixelRatio, h=canvas.height/window.devicePixelRatio;
-    ctx.fillStyle="#050505"; ctx.fillRect(0,0,w,h);
-    // Grid and box rendering logic...
+// THE MISSING PIECE: The Drawing Loop
+function draw() {
     requestAnimationFrame(draw);
+
+    const dpr = window.devicePixelRatio || 1;
+    // Logical Width/Height
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+
+    // 1. Clear Screen
+    ctx.fillStyle = "#050505";
+    ctx.fillRect(0, 0, w, h);
+
+    // 2. Determine Viewport
+    // We want the current column to be on the far right.
+    const maxVisibleCols = Math.ceil(w / CELL_W) + 1;
+    const startCol = currentColumn - maxVisibleCols + 2; 
+
+    // 3. Render Loop
+    for (let i = 0; i < maxVisibleCols; i++) {
+        // The column index in our data
+        const dataColIdx = startCol + i;
+        
+        // The X position on screen
+        const x = i * CELL_W;
+
+        // Skip if negative index (before history started)
+        if (dataColIdx < 0) continue;
+
+        // Draw Grid Line (Vertical)
+        ctx.strokeStyle = "#1a1a1a";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+
+        // Get Data for this column
+        const colData = matrixData[dataColIdx];
+
+        // Draw Rows (0 to 59)
+        for (let row = 0; row < 60; row++) {
+            const y = row * CELL_H;
+            
+            // Draw Grid Line (Horizontal) - only need to do this once per row really, 
+            // but doing it here ensures full grid. Optimized: move out of loop if slow.
+            if(i===0) {
+                ctx.strokeStyle = "#1a1a1a";
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+
+            if (colData && colData[row]) {
+                const cell = colData[row];
+                
+                // Base colors
+                let bg = 'transparent';
+                let txt = '#444';
+
+                if (cell.c === 'R') {
+                    bg = 'rgba(255, 59, 48, 0.15)';
+                    txt = '#ff3b30';
+                } else if (cell.c === 'G') {
+                    bg = 'rgba(52, 199, 89, 0.15)';
+                    txt = '#34c759';
+                }
+
+                // Draw Box Background
+                ctx.fillStyle = bg;
+                ctx.fillRect(x + 1, y + 1, CELL_W - 2, CELL_H - 1);
+
+                // Draw Text
+                if (cell.c !== 'G' && cell.c !== 'R') {
+                    // Gray/Empty
+                } else {
+                    ctx.fillStyle = txt;
+                    ctx.font = "700 10px 'JetBrains Mono'";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(cell.s, x + (CELL_W / 2), y + (CELL_H / 2));
+                }
+                
+                // Highlight current active cell
+                if(dataColIdx === currentColumn) {
+                    ctx.strokeStyle = "rgba(255, 204, 0, 0.3)";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x,y,CELL_W, CELL_H);
+                }
+            }
+        }
+    }
+    
+    // Draw Current Time Indicator (Vertical line at end)
+    const rightEdge = (maxVisibleCols-1) * CELL_W;
 }
 
-window.onload = () => { window.onresize(); connect(); draw(); };
+window.onload = () => {
+    window.onresize();
+    connect();
+    draw();
+};
 </script>
-</body>
-</html>
