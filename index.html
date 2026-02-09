@@ -1,424 +1,458 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>EURUSD WIN PREDICTOR - PRO</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>EURUSD DNA - TIME FIX</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
 
-        :root {
-            --bg-primary: #050505;
-            --bg-secondary: #111111;
-            --border-medium: #333333;
-            --text-primary: #e0e0e0;
-            --text-dim: #666666;
-            --accent-red: #ff3b30;
-            --accent-green: #34c759;
-            --accent-gold: #ffcc00;
-            --bar-size: 36px; 
-            --w-streak: 60px;
-            --w-index: 60px;
-            --w-hunter: 220px;
-            --w-sidebar: calc(var(--w-streak) + var(--w-index) + var(--w-hunter));
-        }
+:root{
+  --bg-primary:#0D1117;
+  --bg-secondary:#161B22;
+  --border-medium:#30363D;
+  --text-secondary:#8B949E;
+  --status-live:#2ECC71;
+  --accent:#00E5FF;
+  --bar-size: 30px; 
+  /* FIXED WIDTHS */
+  --w-streak: 50px;
+  --w-index: 55px;
+  --w-reversal: 120px;
+  --w-sidebar: calc(var(--w-streak) + var(--w-index) + var(--w-reversal));
+}
 
-        * { margin:0; padding:0; box-sizing:border-box; }
-        
-        body, html { 
-            background-color: var(--bg-primary); 
-            width: 100vw; 
-            height: 100vh; 
-            overflow: hidden; 
-            font-family: 'JetBrains Mono', monospace; 
-            color: var(--text-primary); 
-            touch-action: none; 
-        }
+*{margin:0;padding:0;box-sizing:border-box}
 
-        #ui { 
-            position: fixed; top: 0; left: 0; right: 0; height: var(--bar-size); 
-            background: var(--bg-secondary); border-bottom: 1px solid var(--border-medium); 
-            padding: 0 15px; z-index: 1000; display: flex; align-items: center; justify-content: space-between; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
+body,html{
+  background:var(--bg-primary);
+  width:100vw;
+  height:100vh;
+  overflow:hidden;
+  font-family: 'JetBrains Mono', monospace;
+  touch-action:none;
+}
 
-        #app-container { display: flex; height: 100vh; padding-top: var(--bar-size); }
-        
-        #stage { flex: 1; position: relative; background: var(--bg-primary); overflow: hidden; }
-        
-        canvas { display: block; width: 100%; height: 100%; cursor: grab; user-select: none; }
-        canvas:active { cursor: grabbing; }
+/* HEADER */
+#ui{
+  position:fixed;
+  top:0; left:0; right:0;
+  height:var(--bar-size);
+  background:var(--bg-secondary);
+  border-bottom:1px solid var(--border-medium);
+  padding:0 10px;
+  z-index:1000;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
 
-        #sidebar { 
-            width: var(--w-sidebar); background: var(--bg-secondary); 
-            border-left: 1px solid var(--border-medium); display: flex; height: 100%; z-index: 100;
-        }
+.logo { font-weight:800; color:#fff; font-size:12px; }
+.logo span { color:var(--accent); }
+.controls { display:flex; gap:10px; align-items:center; }
+.btn {
+  background: #21262D; border: 1px solid var(--border-medium); color: #C9D1D9;
+  padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 600;
+}
+.btn:hover { border-color: #8B949E; color: #fff; background: #30363D; }
+input[type="file"] { display:none; }
 
-        #col-streak { width: var(--w-streak); border-right: 1px solid var(--border-medium); overflow: hidden; }
-        #col-index { width: var(--w-index); border-right: 1px solid var(--border-medium); background: var(--bg-secondary); overflow: hidden; }
-        #col-hunter { width: var(--w-hunter); display: flex; flex-direction: column; background: var(--bg-secondary); }
+/* MAIN LAYOUT CONTAINER */
+#app-container {
+  display: flex;
+  height: 100vh;
+  padding-top: var(--bar-size);
+}
 
-        .streak-row { display: flex; width: 100%; border-bottom: 1px solid #222; cursor: pointer; }
-        .streak-col { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
-        .red-side { background: rgba(255, 59, 48, 0.05); color: var(--accent-red); }
-        .green-side { background: rgba(52, 199, 89, 0.05); color: var(--accent-green); }
-        .index-cell { width: 100%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: var(--text-dim); border-bottom: 1px solid #222; }
+/* LEFT: CANVAS STAGE */
+#stage {
+  flex: 1;
+  position: relative;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+canvas { display:block; }
 
-        .hunter-body { flex: 1; overflow-y: auto; padding-bottom: 50px; }
-        .h-row { padding: 12px 10px; border-bottom: 1px solid var(--border-medium); cursor: pointer; transition: 0.2s; }
-        .h-row:hover { background: #1a1a1a; }
+/* RIGHT: SIDEBAR */
+#sidebar {
+  width: var(--w-sidebar);
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-medium);
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
 
-        @keyframes pulse-gold {
-            0% { opacity: 0.8; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.02); color: #fff; }
-            100% { opacity: 0.8; transform: scale(1); }
-        }
-        .pulse-val { animation: pulse-gold 1.5s infinite; color: var(--accent-gold); font-weight: 800; }
+#col-streak { width: var(--w-streak); border-right: 1px solid var(--border-medium); overflow: hidden; }
+#col-index { width: var(--w-index); border-right: 1px solid var(--border-medium); background: #0d1117; overflow: hidden; }
+#col-reversal { width: var(--w-reversal); background: #0a0a0a; overflow: hidden; }
 
-        #modalOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; backdrop-filter: blur(4px); }
-        #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; height: 450px; background: var(--bg-secondary); border: 1px solid var(--border-medium); z-index: 2001; flex-direction: column; }
-        
-        #followBtn {
-            background: var(--bg-tertiary); border: 1px solid var(--border-medium); 
-            color: var(--text-dim); padding: 4px 10px; font-size: 10px; 
-            font-weight: 700; cursor: pointer; border-radius: 4px;
-        }
-    </style>
+.streak-row{display:flex;width:100%;border-bottom:1px solid #21262D;cursor:pointer;height:100%;}
+.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;}
+.streak-col.red-side{background:linear-gradient(135deg, #FF4757 0%, #B32431 100%);color:#FFF;}
+.streak-col.green-side{background:linear-gradient(135deg, #2ECC71 0%, #1F8B4C 100%);color:#FFF;}
+
+.index-cell{
+  width:100%; height:100%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:9px; font-weight:700; color:var(--text-secondary);
+  border-bottom:1px solid #21262D;
+}
+
+.reversal-cell{
+  width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:8px; font-weight:700;
+  border-bottom:1px solid #21262D;
+  background: #0a0a0a;
+  padding: 2px;
+}
+.reversal-king{
+  color:#FFD700; font-weight:800; font-size:9px;
+}
+.reversal-drop{
+  color:#FF6B6B; font-size:7px; margin-top:1px;
+}
+
+/* MODAL */
+#modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:2000;backdrop-filter:blur(2px);}
+#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:400px;background:var(--bg-secondary);border:1px solid var(--border-medium);z-index:2001;border-radius:8px;flex-direction:column;overflow:hidden;}
+
+</style>
 </head>
 <body>
 
 <div id="ui">
-    <div style="font-weight:800; font-size:11px; letter-spacing:1px;">WALLSPECTRUM <span style="color:var(--accent-gold)">WIN PREDICTOR</span></div>
-    <div style="display:flex; align-items:center; gap:15px;">
-        <button id="followBtn" onclick="toggleFollow()">FOLLOWING</button>
-        <div id="priceTag" style="color:var(--accent-green); font-weight:bold; font-size:13px; font-variant-numeric: tabular-nums;">CONNECTING...</div>
-    </div>
+  <div class="logo">SYNTHETIC <span>TIME</span></div>
+  <div class="controls">
+    <div id="priceTag" style="color:#2ECC71; font-size:11px; font-weight:bold;">CONNECTING...</div>
+    <label class="btn">📂 CSV <input type="file" id="csvInput" accept=".csv"></label>
+  </div>
 </div>
 
 <div id="app-container">
-    <div id="stage">
-        <canvas id="matrixCanvas"></canvas>
-    </div>
-    <div id="sidebar">
-        <div id="col-streak"></div>
-        <div id="col-index"></div>
-        <div id="col-hunter">
-            <div style="padding:8px; font-size:9px; color:var(--text-dim); border-bottom:1px solid var(--border-medium); text-align:center; font-weight:bold;">TOP SIGNALS</div>
-            <div class="hunter-body" id="hunterList"></div>
-        </div>
-    </div>
+  <div id="stage">
+    <canvas id="matrixCanvas"></canvas>
+  </div>
+  <div id="sidebar">
+    <div id="col-streak"></div>
+    <div id="col-index"></div>
+    <div id="col-reversal"></div>
+  </div>
 </div>
 
 <div id="modalOverlay" onclick="closeModal()"></div>
 <div id="modal">
-    <div id="modalTitle" style="padding:12px; text-align:center; border-bottom:1px solid var(--border-medium); font-size:11px; font-weight:800; color:var(--accent-gold);"></div>
-    <div style="flex:1; display:flex; overflow:hidden;">
-        <div id="rD" style="flex:1; overflow-y:auto; border-right:1px solid #222;"></div>
-        <div id="gD" style="flex:1; overflow-y:auto;"></div>
-    </div>
-    <button onclick="closeModal()" style="padding:10px; background:transparent; border:none; border-top:1px solid var(--border-medium); color:var(--text-dim); cursor:pointer; font-family:inherit; font-size:10px;">CLOSE</button>
+  <div id="modalTitle" style="padding:10px; text-align:center; background:#1C2128; color:#fff; font-size:11px; font-weight:bold;"></div>
+  <div style="flex:1; display:flex;">
+    <div id="rD" style="flex:1; overflow-y:auto; background:#1a0505;"></div>
+    <div id="gD" style="flex:1; overflow-y:auto; background:#051a0d;"></div>
+  </div>
 </div>
 
 <script>
-    const canvas = document.getElementById('matrixCanvas');
-    const ctx = canvas.getContext('2d', { alpha: false });
-    const SYMBOL = "frxEURUSD";
-    const DERIV_WS = "wss://ws.derivws.com/websockets/v3?app_id=1089";
+// CONFIG
+const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false});
+const SYMBOL="frxEURUSD", DERIV_WS="wss://ws.derivws.com/websockets/v3?app_id=1089";
 
-    const CELL_W = 45;      
-    let CELL_H = 16;        
-    const MAX_COLS = 7200; 
+let matrixData={}, currentColumn=0, ticksInCurrentMinute=0, cameraX=0, isFollowing=true;
+const CELL_W=50; 
+const TOTAL_ROWS=60;
+const MAX_COLS=7200;
+let CELL_H=16; 
+const BAR_SIZE=25; 
 
-    let matrixData = {};
-    let currentColumn = 0;
-    let activeSecond = 0;
-    let lastPrice = 0;
-    
-    let cameraX = 0;
-    let isFollowing = true;
-    let isDragging = false;
-    let dragStartX = 0;
-    let dragStartCameraX = 0;
+const ENGINE = {
+  offsets: Array.from({length: 60}, (_, i) => ({
+    id: i, bucket_end: 0,
+    open: 0, close: 0, high: 0, low: 0,
+    prev_streak: 0, prev_color: 'N',
+    show_streak: 0, show_color: 'N'
+  }))
+};
 
-    const ENGINE = Array.from({ length: 60 }, (_, i) => ({
-        id: i, bucket_ts: 0, open: 0, close: 0,
-        prev_color: 'Gray', prev_streak: 0,
-        live_color: 'Gray', live_streak: 0,
-        history: { Red: {}, Green: {} }
-    }));
+function getWeekProgress(){
+  const now=new Date();
+  const day=now.getDay();
+  const secsToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+  let s = (day === 0) ? (6 * 86400) + secsToday : ((day - 1) * 86400) + secsToday;
+  return Math.max(0, s);
+}
 
-    const pad = (n) => String(n).padStart(2, '0');
+const pad=(n,s=2)=>String(n).padStart(s,'0');
 
-    // Helper to keep coordinates small (DNA Logic)
-    function getWeekProgress() {
-        const now = new Date();
-        const day = now.getDay();
-        const secsToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
-        // Simple continuous counter for the week
-        // 0 = Sunday, 1 = Monday... 
-        // We just need a number that increases every second and resets weekly/daily to keep X small
-        // Using a simple epoch modulo is safer for this specific visualizer
-        return Math.floor(Date.now() / 1000); 
-    }
+// LOGIC - MATCHES PYTHON SCRIPT EXACTLY
+function processTick(price, time) {
+  document.getElementById('priceTag').innerText = price;
+  
+  for(let i=0; i<60; i++) {
+    const c = ENGINE.offsets[i];
+    const bucket = Math.floor((time - i) / 60) * 60 + i;
 
-    function processTick(price, epoch) {
-        document.getElementById('priceTag').innerText = price.toFixed(5);
-        const tag = document.getElementById('priceTag');
-        tag.style.color = price > lastPrice ? '#34c759' : (price < lastPrice ? '#ff3b30' : '#e0e0e0');
-        lastPrice = price;
-
-        activeSecond = epoch % 60; 
-
-        ENGINE.forEach(s => {
-            const bucket = Math.floor((epoch - s.id) / 60) * 60 + s.id;
-            if (bucket > s.bucket_ts) {
-                if (s.bucket_ts !== 0) {
-                    const color = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
-                    if (color !== 'Gray') {
-                        if (color === s.prev_color) s.prev_streak++;
-                        else { s.prev_color = color; s.prev_streak = 1; }
-                        s.history[color][s.prev_streak] = (s.history[color][s.prev_streak] || 0) + 1;
-                    } else { s.prev_streak = 0; s.prev_color = 'Gray'; }
-                }
-                s.bucket_ts = bucket; s.open = price; s.close = price;
-            } else { s.close = price; }
-
-            const lColor = s.close > s.open ? 'Green' : (s.close < s.open ? 'Red' : 'Gray');
-            if (lColor === 'Gray') { s.live_streak = s.prev_streak; s.live_color = s.prev_color; }
-            else if (lColor === s.prev_color) { s.live_streak = s.prev_streak + 1; s.live_color = lColor; }
-            else { s.live_streak = 1; s.live_color = lColor; }
-        });
-    }
-
-    function handleTick(tick) {
-        const now = tick.epoch;
-        processTick(tick.quote, now);
+    if (bucket > c.bucket_end) {
+      // Process CLOSED candle (matches Python lines 193-220)
+      if (c.bucket_end !== 0) {
+        // Gap detection
+        const time_diff = bucket - c.bucket_end;
+        const is_gap = time_diff > 60;
         
-        // FIX: Use Modulo to keep column index within 0-7200 range
-        // This ensures the X coordinate never exceeds what the browser can draw
-        const weekSecs = getWeekProgress();
-        currentColumn = Math.floor(weekSecs / 60) % MAX_COLS;
+        const isBull = c.close > c.open;
+        const isBear = c.close < c.open;
+        const closedColor = isBull ? 'G' : (isBear ? 'R' : 'N');
+        
+        // STRICT RESET LOGIC (Python lines 203-220)
+        if (is_gap || closedColor === 'N') {
+          // Reset streak to 0 on gap or neutral candle
+          c.prev_streak = 0;
+          c.prev_color = 'N';
+        } else if (closedColor === c.prev_color) {
+          // Same color - continue streak
+          c.prev_streak++;
+        } else {
+          // Different color - start new streak
+          c.prev_color = closedColor;
+          c.prev_streak = 1;
+        }
+      }
+      
+      // Start new bucket
+      c.bucket_end = bucket;
+      c.open = price; c.high = price; c.low = price; c.close = price;
+    } else {
+      // Update current bucket
+      c.close = price;
+      if(price > c.high) c.high = price;
+      if(price < c.low) c.low = price;
+    }
 
-        if (!matrixData[currentColumn]) matrixData[currentColumn] = {};
+    // Calculate LIVE display (current forming candle)
+    const liveBull = c.close > c.open;
+    const liveBear = c.close < c.open;
+    const liveColor = liveBull ? 'G' : (liveBear ? 'R' : 'N');
 
-        ENGINE.forEach(s => {
-            matrixData[currentColumn][s.id] = {
-                c: s.close > s.open ? (s.close > s.open ? 'G' : 'R') : (s.close < s.open ? 'R' : 'N'), 
-                s: s.live_streak
+    // LIVE DISPLAY LOGIC - Exactly matches Python's three-branch logic (lines 203, 222, 225)
+    if (liveColor === 'N') {
+      // Branch 1: Neutral candle (Python line 203: if color == 'Gray')
+      c.show_streak = 0;
+      c.show_color = 'N';
+    } else if (liveColor === c.prev_color && c.prev_color !== 'N') {
+      // Branch 2: Same color continuation (Python line 222: elif color == current_run_color)
+      c.show_streak = c.prev_streak + 1;
+      c.show_color = liveColor;
+    } else {
+      // Branch 3: Different color or fresh start after neutral (Python line 225: else)
+      c.show_streak = 1;
+      c.show_color = liveColor;
+    }
+  }
+}
+
+function handleTick(tick){
+  const s = getWeekProgress(); 
+  currentColumn = Math.floor(s/60) % MAX_COLS; 
+  ticksInCurrentMinute = s % 60; 
+  processTick(tick.quote, tick.epoch);
+  
+  if(!matrixData[currentColumn]) matrixData[currentColumn]={};
+  const d = ENGINE.offsets[ticksInCurrentMinute];
+  matrixData[currentColumn][ticksInCurrentMinute] = { c: d.show_color, s: d.show_streak, p: tick.quote };
+
+  updatePanels(); 
+  if(isFollowing) jumpToCurrent();
+}
+
+function updatePanels(){
+  let hS='', hI='', hR='';
+  const rowH = CELL_H + 'px';
+
+  for(let r=0; r<TOTAL_ROWS; r++){
+    const d = ENGINE.offsets[r];
+    let val = d.show_streak || '--';
+    let rM = d.show_color === 'R' ? val : '--';
+    let gM = d.show_color === 'G' ? val : '--';
+    if(d.show_color === 'N') { rM = '--'; gM = '--'; }
+
+    hS+=`<div class="streak-row" onclick="openModal(${r})" style="height:${rowH}"><div class="streak-col red-side">${rM!='--'?'x'+rM:'--'}</div><div class="streak-col green-side">${gM!='--'?'x'+gM:'--'}</div></div>`;
+    hI+=`<div class="index-cell" style="height:${rowH}">${pad(r)}_${pad(r)}</div>`;
+    
+    // Calculate King Streak for this offset
+    const kingInfo = calculateKingStreak(r);
+    if(kingInfo){
+      hR+=`<div class="reversal-cell" style="height:${rowH}"><div class="reversal-king">${kingInfo.tag} x${kingInfo.streak}-${kingInfo.count}</div><div class="reversal-drop">${kingInfo.drop}%↓ x${kingInfo.nextStreak}-${kingInfo.nextCount}</div></div>`;
+    } else {
+      hR+=`<div class="reversal-cell" style="height:${rowH}"><div style="color:#444;">--</div></div>`;
+    }
+  }
+  document.getElementById('col-streak').innerHTML=hS; 
+  document.getElementById('col-index').innerHTML=hI;
+  document.getElementById('col-reversal').innerHTML=hR;
+}
+
+function calculateKingStreak(offset) {
+  // Collect all streaks for this offset
+  let redStreaks = {}, greenStreaks = {};
+  
+  Object.values(matrixData).forEach(colData => {
+    if(colData[offset]) {
+      const d = colData[offset];
+      if(d.c === 'R' && d.s > 0) {
+        redStreaks[d.s] = (redStreaks[d.s] || 0) + 1;
+      } else if(d.c === 'G' && d.s > 0) {
+        greenStreaks[d.s] = (greenStreaks[d.s] || 0) + 1;
+      }
+    }
+  });
+  
+  // Find king for both colors
+  let kings = [];
+  
+  for(let color of ['R', 'G']) {
+    const streaks = color === 'R' ? redStreaks : greenStreaks;
+    const maxStreak = Math.max(0, ...Object.keys(streaks).map(Number));
+    
+    if(maxStreak > 0) {
+      // Find the streak with highest count and biggest dropdown
+      let bestKing = null;
+      let bestDropdown = 0;
+      
+      for(let s = 1; s < maxStreak; s++) {
+        const curr = streaks[s] || 0;
+        const next = streaks[s + 1] || 0;
+        
+        if(curr > 0) { // Show as soon as there's any data
+          const dropout = ((curr - next) / curr) * 100;
+          if(dropout > bestDropdown || (dropout === bestDropdown && curr > (bestKing?.count || 0))) {
+            bestDropdown = dropout;
+            bestKing = {
+              tag: color === 'R' ? 'R' : 'G',
+              streak: s,
+              count: curr,
+              nextStreak: s + 1,
+              nextCount: next,
+              drop: dropout.toFixed(0)
             };
-        });
-        
-        updateSidebar();
-        if(isFollowing) jumpToCurrent();
-    }
-
-    function jumpToCurrent(){ 
-        const stageW = canvas.width / window.devicePixelRatio;
-        cameraX = Math.max(0, (currentColumn * CELL_W) - stageW + (CELL_W * 2)); 
-    }
-
-    function toggleFollow() {
-        isFollowing = !isFollowing;
-        const btn = document.getElementById('followBtn');
-        btn.innerText = isFollowing ? "FOLLOWING" : "RESUME FOLLOW";
-        btn.style.color = isFollowing ? "#34c759" : "#666";
-        if(isFollowing) jumpToCurrent();
-    }
-
-    canvas.addEventListener('mousedown', (e) => {
-        isDragging = true; dragStartX = e.clientX; dragStartCameraX = cameraX;
-        isFollowing = false; document.getElementById('followBtn').innerText = "RESUME FOLLOW";
-        document.getElementById('followBtn').style.color = "#666";
-    });
-    window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        cameraX = Math.max(0, dragStartCameraX + (dragStartX - e.clientX));
-    });
-    window.addEventListener('mouseup', () => { isDragging = false; });
-    
-    canvas.addEventListener('touchstart', (e) => {
-        isDragging = true; dragStartX = e.touches[0].clientX; dragStartCameraX = cameraX;
-        isFollowing = false; document.getElementById('followBtn').innerText = "RESUME FOLLOW";
-        document.getElementById('followBtn').style.color = "#666";
-    });
-    window.addEventListener('touchmove', (e) => {
-        if (!isDragging) return;
-        cameraX = Math.max(0, dragStartCameraX + (dragStartX - e.touches[0].clientX));
-    });
-    window.addEventListener('touchend', () => { isDragging = false; });
-
-    function updateSidebar() {
-        let hS = '', hI = '';
-        const liveData = matrixData[currentColumn] || {};
-
-        for (let r = 0; r < 60; r++) {
-            const cell = liveData[r];
-            let rVal = '--', gVal = '--';
-            let isRed = false, isGreen = false;
-            let isActive = (r === activeSecond); 
-
-            const eng = ENGINE[r];
-            const liveC = eng.close > eng.open ? 'Green' : (eng.close < eng.open ? 'Red' : 'Gray');
-            const val = eng.live_streak > 0 ? eng.live_streak : '--';
-
-            if(liveC === 'Red') { rVal = val; isRed = true; }
-            if(liveC === 'Green') { gVal = val; isGreen = true; }
-
-            const rowStyle = isActive ? 'border: 1px solid var(--accent-gold); background: #222;' : '';
-            
-            hS += `<div class="streak-row" onclick="openModal(${r})" style="height:${CELL_H}px; ${rowStyle}">
-                <div class="streak-col red-side" style="${isRed ? 'opacity:1; color:#fff; background:var(--accent-red);' : ''}">${rVal}</div>
-                <div class="streak-col green-side" style="${isGreen ? 'opacity:1; color:#fff; background:var(--accent-green);' : ''}">${gVal}</div>
-            </div>`;
-
-            hI += `<div class="index-cell" style="height:${CELL_H}px; ${isActive ? 'color:var(--accent-gold); font-weight:900;' : ''}">${pad(r)}_${pad(r)}</div>`;
+          }
         }
-        document.getElementById('col-streak').innerHTML = hS;
-        document.getElementById('col-index').innerHTML = hI;
-        scanBestWalls();
+      }
+      
+      if(bestKing) kings.push(bestKing);
     }
+  }
+  
+  // Return the best king (highest dropout)
+  if(kings.length > 0) {
+    kings.sort((a, b) => parseFloat(b.drop) - parseFloat(a.drop));
+    return kings[0];
+  }
+  
+  return null;
+}
 
-    function scanBestWalls() {
-        let walls = [];
-        ENGINE.forEach(s => {
-            ['Red', 'Green'].forEach(color => {
-                const counts = s.history[color];
-                for (let x = 2; x < 15; x++) {
-                    const cur = counts[x] || 0;
-                    const nxt = counts[x + 1] || 0;
-                    if (cur >= 1) { 
-                        const wr = (1 - (nxt / cur)) * 100;
-                        const score = wr * Math.log10(cur + 1); 
-                        if(wr > 0) {
-                            walls.push({
-                                id: s.id, color, level: `X${x}→X${x+1}`, 
-                                wr, cur, score, 
-                                pred: color === 'Red' ? 'CALL' : 'PUT' 
-                            });
-                        }
-                    }
-                }
-            });
-        });
+function openModal(sec){
+  document.getElementById('modalTitle').innerText=`OFFSET ${pad(sec)}_${pad(sec)}`;
+  let rL=[], gL=[];
+  Object.keys(matrixData).forEach(col => { if(matrixData[col][sec]){ const d = matrixData[col][sec]; if(d.c === 'R') rL.push(d.s); else gL.push(d.s); }});
+  const sum=(a)=>{ const c={}; a.forEach(x=>c[x]=(c[x]||0)+1); return Object.keys(c).map(k=>({s:parseInt(k),c:c[k]})).sort((x,y)=>y.s-x.s); };
+  
+  const rSum = sum(rL); const gSum = sum(gL);
+  document.getElementById('rD').innerHTML = rSum.map(i => `<div style="padding:8px;border-bottom:1px solid #333;color:#ff8888;font-size:10px;"><b>x${i.s}</b> <span style="float:right">${i.c} hits</span></div>`).join('');
+  document.getElementById('gD').innerHTML = gSum.map(i => `<div style="padding:8px;border-bottom:1px solid #333;color:#88ff88;font-size:10px;"><b>x${i.s}</b> <span style="float:right">${i.c} hits</span></div>`).join('');
+  document.getElementById('modal').style.display='flex'; 
+  document.getElementById('modalOverlay').style.display='block';
+}
+function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
+document.getElementById('csvInput').addEventListener('change', function(e) { alert("CSV Loaded."); });
 
-        walls.sort((a, b) => b.score - a.score);
-        document.getElementById('hunterList').innerHTML = walls.slice(0, 15).map(w => `
-            <div class="h-row" onclick="openModal(${w.id})">
-                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                    <span style="color:var(--accent-gold); font-size:11px; font-weight:800;">${pad(w.id)}_${pad(w.id)}</span>
-                    <span class="pulse-val" style="font-size:11px;">${w.wr.toFixed(0)}% WIN</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; font-size:10px;">
-                    <span style="color:${w.color==='Red'?'var(--accent-red)':'var(--accent-green)'}; font-weight:bold;">${w.level}</span>
-                    <span style="color:var(--text-dim);">VOL: ${w.cur}</span>
-                </div>
-            </div>
-        `).join('') || '<div style="padding:20px; text-align:center; font-size:10px; color:#444;">ANALYZING...</div>';
+function jumpToCurrent(){ cameraX = Math.max(0, (currentColumn*CELL_W)-(canvas.width/window.devicePixelRatio - CELL_W)); }
+
+window.onresize=()=>{ 
+  const dpr=window.devicePixelRatio||1;
+  const stage = document.getElementById('stage');
+  canvas.width = stage.clientWidth * dpr;
+  canvas.height = stage.clientHeight * dpr;
+  canvas.style.width = stage.clientWidth + 'px';
+  canvas.style.height = stage.clientHeight + 'px';
+  ctx.scale(dpr,dpr); 
+  const availableHeight = stage.clientHeight - BAR_SIZE;
+  CELL_H = availableHeight / TOTAL_ROWS;
+  updatePanels();
+};
+
+function connect(){
+  let ws=new WebSocket(DERIV_WS);
+  ws.onopen=()=>{ ws.send(JSON.stringify({ticks:SYMBOL, subscribe:1})); };
+  ws.onmessage=(m)=>{ const d=JSON.parse(m.data); if(d.tick) handleTick(d.tick); };
+  ws.onclose=()=>{ setTimeout(connect,3000); };
+}
+
+function draw(){
+  const w = canvas.width/window.devicePixelRatio;
+  const h = canvas.height/window.devicePixelRatio;
+  
+  ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,w,h); 
+  
+  ctx.save(); 
+  ctx.translate(-cameraX,0);
+  let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+w)/CELL_W)+1);
+  
+  const beforeCol = currentColumn > 0 ? currentColumn - 1 : MAX_COLS - 1;
+  let maxS = 0;
+  if (matrixData[beforeCol]) Object.values(matrixData[beforeCol]).forEach(d => { if (d.s > maxS) maxS = d.s; });
+
+  ctx.strokeStyle='#21262D'; ctx.lineWidth=1;
+  for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
+  for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
+
+  for(let a=sC; a<=eC; a++){
+    let x=a*CELL_W;
+    if(matrixData[a]) Object.keys(matrixData[a]).forEach(r=>{
+      const d=matrixData[a][r];
+      if(d.c === 'N') return;
+      const isP = (a === beforeCol && d.s === maxS && d.s > 1);
+      const scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(Date.now() / 200)))) : 1;
+      
+      ctx.save();
+      if(isP) { ctx.translate(x+CELL_W/2, r*CELL_H+CELL_H/2); ctx.scale(scale, scale); ctx.translate(-(x+CELL_W/2), -(r*CELL_H+CELL_H/2)); }
+      
+      ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
+      ctx.fillRect(x+1.5, r*CELL_H+1.5, CELL_W-3, CELL_H-3);
+      ctx.fillStyle='#fff'; ctx.font='bold 10px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
+      ctx.restore();
+    });
+  }
+  ctx.restore();
+  
+  const barY = TOTAL_ROWS * CELL_H;
+  ctx.fillStyle = '#161B22'; ctx.fillRect(0, barY, w, BAR_SIZE);
+  ctx.strokeStyle = '#30363D'; ctx.beginPath(); ctx.moveTo(0, barY); ctx.lineTo(w, barY); ctx.stroke();
+  
+  const now=new Date();
+  const day=now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const startOfISTWeek = new Date(now.setDate(diff));
+  startOfISTWeek.setHours(0,0,0,0);
+  
+  ctx.save();
+  ctx.translate(-cameraX, 0);
+  ctx.fillStyle='#8B949E'; 
+  ctx.font='700 9px "JetBrains Mono"'; 
+  ctx.textAlign='center'; 
+  ctx.textBaseline='middle'; 
+  for(let a=sC; a<=eC; a++){
+    if (a <= currentColumn) { 
+      let x=a*CELL_W;
+      const lD=new Date(startOfISTWeek.getTime()+(a*60000));
+      // DRAW TIME FOR EVERY SINGLE COLUMN
+      ctx.fillText(`${pad(lD.getHours())}:${pad(lD.getMinutes())}`, x+CELL_W/2, barY + (BAR_SIZE / 2));
     }
+  }
+  ctx.restore();
 
-    function draw() {
-        requestAnimationFrame(draw);
-        const dpr = window.devicePixelRatio || 1;
-        const w = canvas.width / dpr;
-        const h = canvas.height / dpr;
-        
-        ctx.fillStyle = "#050505";
-        ctx.fillRect(0, 0, w, h);
+  requestAnimationFrame(draw);
+}
 
-        ctx.save();
-        ctx.translate(-cameraX, 0);
-
-        const startCol = Math.floor(cameraX / CELL_W);
-        const endCol = Math.floor((cameraX + w) / CELL_W) + 1;
-
-        for (let i = startCol; i <= endCol; i++) {
-            const x = i * CELL_W;
-            // Handle wrapping for infinite scroll illusion if needed, but strictly 
-            // mapping to currentColumn for now is safest.
-            const colData = matrixData[i];
-
-            ctx.strokeStyle = "#1a1a1a";
-            ctx.lineWidth = 0.5;
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-
-            for (let r = 0; r < 60; r++) {
-                const y = r * CELL_H;
-                if (colData && colData[r]) {
-                    const cell = colData[r];
-                    let bg = '#0a0a0a'; 
-                    let txtColor = '#333';
-                    
-                    if (cell.c === 'R') { bg = 'rgba(255, 59, 48, 0.2)'; txtColor = '#ff3b30'; }
-                    if (cell.c === 'G') { bg = 'rgba(52, 199, 89, 0.2)'; txtColor = '#34c759'; }
-                    if (cell.c === 'N') { bg = '#111'; txtColor = '#222'; }
-
-                    ctx.fillStyle = bg;
-                    ctx.fillRect(x + 1, y + 1, CELL_W - 2, CELL_H - 2);
-
-                    if (cell.s > 0) {
-                        ctx.fillStyle = txtColor;
-                        ctx.font = "bold 10px 'JetBrains Mono'";
-                        ctx.textAlign = "center";
-                        ctx.textBaseline = "middle";
-                        ctx.fillText(cell.s, x + CELL_W / 2, y + CELL_H / 2);
-                    }
-                }
-            }
-
-            if (i === currentColumn) {
-                ctx.strokeStyle = "rgba(255, 204, 0, 0.3)";
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x, 0, CELL_W, 60*CELL_H);
-                
-                const scannerY = activeSecond * CELL_H;
-                ctx.fillStyle = "rgba(255, 204, 0, 0.2)";
-                ctx.fillRect(x, scannerY, CELL_W, CELL_H);
-                ctx.strokeStyle = "#ffcc00";
-                ctx.strokeRect(x, scannerY, CELL_W, CELL_H);
-            }
-        }
-        ctx.restore();
-    }
-
-    window.openModal = function(id) {
-        const s = ENGINE[id];
-        document.getElementById('modalTitle').innerText = `OFFSET ${pad(id)} HISTORY`;
-        const render = (obj, c) => Object.keys(obj).sort((a,b)=>b-a).map(k => 
-            `<div style="padding:8px; border-bottom:1px solid #222; font-size:11px; display:flex; justify-content:space-between;">
-                <span style="color:${c}; font-weight:bold;">Streak ${k}</span>
-                <span>${obj[k]} hits</span>
-            </div>`).join('');
-        document.getElementById('rD').innerHTML = render(s.history.Red, '#ff3b30');
-        document.getElementById('gD').innerHTML = render(s.history.Green, '#34c759');
-        document.getElementById('modal').style.display = 'flex';
-        document.getElementById('modalOverlay').style.display = 'block';
-    };
-
-    window.closeModal = function() {
-        document.getElementById('modal').style.display = 'none';
-        document.getElementById('modalOverlay').style.display = 'none';
-    };
-
-    window.onresize = () => {
-        const stage = document.getElementById('stage');
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = stage.clientWidth * dpr;
-        canvas.height = stage.clientHeight * dpr;
-        ctx.scale(dpr, dpr);
-        CELL_H = stage.clientHeight / 60;
-        updateSidebar();
-        if(isFollowing) jumpToCurrent();
-    };
-
-    function connect() {
-        let ws = new WebSocket(DERIV_WS);
-        ws.onopen = () => ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
-        ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.tick) handleTick(d.tick); };
-        ws.onclose = () => setTimeout(connect, 3000);
-    }
-
-    window.onload = () => { window.onresize(); connect(); draw(); };
+window.onload = () => { window.onresize(); connect(); draw(); };
 </script>
-
 </body>
 </html>
