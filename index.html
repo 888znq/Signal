@@ -50,7 +50,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-  // --- YOUR HARDCODED CONFIG ---
+  // --- CONFIG ---
   const firebaseConfig = {
     apiKey: "AIzaSyCX-bZLDHy-6wxuc5b8YInV_Mr7uYOTmgk",
     authDomain: "trinity-os-8edd0.firebaseapp.com",
@@ -150,7 +150,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   canvas.addEventListener('dblclick', () => { isFollowing=true; jumpToCurrent(); });
 
   function draw(){
-    updateCurrentColumn();
+    updateCurrentColumn(); // Ensure sync
     ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
     
     const now = new Date();
