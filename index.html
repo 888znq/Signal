@@ -13,7 +13,6 @@ body,html{ background:var(--bg-primary); width:100vw; height:100vh; overflow:hid
 .status{ width: 12px; height: 12px; border-radius: 50%; display: block; font-size: 0; background: var(--status-offline); border: 1px solid rgba(255,255,255,0.1); }
 .status.live{ background: var(--status-live); box-shadow: 0 0 8px rgba(46, 204, 113, 0.5); animation: pulse 2s infinite; }
 
-/* Reset Button - Discreetly positioned in the UI bar */
 .reset-btn {
     margin-left: auto;
     background: transparent;
@@ -25,7 +24,6 @@ body,html{ background:var(--bg-primary); width:100vw; height:100vh; overflow:hid
     cursor: pointer;
     border-radius: 4px;
     font-weight: bold;
-    transition: all 0.2s;
 }
 .reset-btn:hover { background: #FF4757; color: #FFF; }
 
@@ -85,29 +83,26 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   let CELL_H=16, cachedStartOfWeek=null, panelUpdateTimer=null;
   const pad=(n,s=2)=>String(n).padStart(s,'0');
 
-  // --- DATABASE RESET LOGIC ---
+  // --- FIXED RESET LOGIC ---
   document.getElementById('resetDB').addEventListener('click', () => {
     if(confirm("Confirm: Clear entire database for the new week?")) {
         remove(ref(db, 'matrixData'))
         .then(() => {
-            alert("Database wiped. Starting clean.");
-            matrixData = {};
-        })
-        .catch(e => alert("Error: " + e.message));
+            matrixData = {}; // Force local clear
+            updatePanels();   // Force UI update to clear streak panel
+            alert("Database Reset Complete.");
+        });
     }
   });
 
   function getWeekProgress(){
     const now = new Date();
-    // 5.5 hours = 19800000 milliseconds
     const istOffset = 5.5 * 3600 * 1000;
     const adjustedNow = new Date(now.getTime() - istOffset);
-    
-    const day = adjustedNow.getUTCDay(); // Mon becomes 1, Sun becomes 0
+    const day = adjustedNow.getUTCDay();
     const hours = adjustedNow.getUTCHours();
     const minutes = adjustedNow.getUTCMinutes();
     const seconds = adjustedNow.getUTCSeconds();
-    
     const secsToday = (hours * 3600) + (minutes * 60) + seconds;
     let s = (day === 0) ? (6 * 86400) + secsToday : ((day - 1) * 86400) + secsToday;
     return Math.max(0, s);
@@ -122,7 +117,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   const dataRef = ref(db, 'matrixData');
   onValue(dataRef, (snapshot) => {
     const val = snapshot.val();
-    matrixData = val || {};
+    matrixData = val || {}; // Ensure it defaults to empty object if null
     document.getElementById('status').className = 'status live';
     updateCurrentColumn();
     if(panelUpdateTimer) clearTimeout(panelUpdateTimer);
@@ -133,7 +128,12 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     let hS='', hI='';
     for(let r=0; r<TOTAL_ROWS; r++){
       let rM=0, gM=0;
-      Object.values(matrixData).forEach(m=>{ if(m[r]){ if(m[r].c==='R') rM=Math.max(rM,m[r].s); else gM=Math.max(gM,m[r].s); }});
+      // Scan current matrixData
+      Object.values(matrixData).forEach(m=>{ 
+        if(m && m[r]){ 
+          if(m[r].c==='R') rM=Math.max(rM,m[r].s); else gM=Math.max(gM,m[r].s); 
+        }
+      });
       hS+=`<div class="streak-row" onclick="window.openModal(${r})" style="position:absolute;top:${r*CELL_H}px;height:${CELL_H}px"><div class="streak-col red-side">${rM?'x'+rM:'--'}</div><div class="streak-col green-side">${gM?'x'+gM:'--'}</div></div>`;
       hI+=`<div class="index-cell" style="top:${r*CELL_H}px;height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
     }
@@ -144,7 +144,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   window.openModal = function(sec){
     document.getElementById('modalTitle').innerText=`${pad(sec)}_${pad(sec)}`;
     let rL=[], gL=[];
-    Object.keys(matrixData).forEach(col => { if(matrixData[col][sec]){ const d = matrixData[col][sec]; if(d.c === 'R') rL.push(d.s); else gL.push(d.s); }});
+    Object.keys(matrixData).forEach(col => { if(matrixData[col] && matrixData[col][sec]){ const d = matrixData[col][sec]; if(d.c === 'R') rL.push(d.s); else gL.push(d.s); }});
     const sum=(a)=>{ const c={}; a.forEach(x=>c[x]=(c[x]||0)+1); return Object.keys(c).map(k=>({s:parseInt(k),c:c[k]})).sort((x,y)=>y.s-x.s); };
     document.getElementById('rD').innerHTML = sum(rL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
     document.getElementById('gD').innerHTML = sum(gL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
@@ -174,7 +174,6 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     if (!cachedStartOfWeek) {
       const now = new Date();
       const diff = now.getUTCDate() - (now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1);
-      // Anchor to Monday 00:00 UTC then add IST offset for labels
       const baseUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
       cachedStartOfWeek = new Date(baseUTC.getTime() + (5.5 * 3600 * 1000));
     }
@@ -202,7 +201,6 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     ctx.translate(-cameraX, 0);
     ctx.fillStyle='#8B949E'; ctx.font='700 11px "JetBrains Mono"'; ctx.textAlign='center';
     for(let a=sC; a<=eC; a++){
-        // Label rendering based on IST
         const lD=new Date(cachedStartOfWeek.getTime()+(a*60000));
         ctx.fillText(`${pad(lD.getHours())}:${pad(lD.getMinutes())}`, a*CELL_W+CELL_W/2, (TOTAL_ROWS*CELL_H) + 15);
     }
