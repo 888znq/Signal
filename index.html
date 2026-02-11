@@ -1,77 +1,133 @@
-// ... (Keep the Firebase initialization and setup the same as the previous code)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>TRINITY OS - EURUSD DNA (IST)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&display=swap');
+        :root { --bg: #0D1117; --panel: #161B22; --border: #30363D; --green: #2ECC71; --red: #FF4757; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+        #header { height: 25px; background: var(--panel); display: flex; align-items: center; padding: 0 15px; border-bottom: 1px solid var(--border); font-size: 10px; }
+        .status-dot { width: 8px; height: 8px; background: #555; border-radius: 50%; margin-right: 8px; }
+        .status-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
+        canvas { display: block; background: var(--bg); }
+        #streakPanel { position: fixed; right: 0; top: 25px; width: 80px; height: calc(100% - 50px); background: var(--panel); border-left: 1px solid var(--border); overflow-y: hidden; }
+        .streak-row { display: flex; height: 16.66px; border-bottom: 1px solid #21262D; font-size: 9px; }
+        .streak-red { flex: 1; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .streak-green { flex: 1; background: var(--green); display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    </style>
+</head>
+<body>
 
-  function draw() {
-    ctx.fillStyle = '#0D1117';
-    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+<div id="header">
+    <div id="dot" class="status-dot"></div>
+    TRINITY OS :: EURUSD :: IST TIME
+</div>
 
-    // 1. Establish the Anchor (Monday 00:00 UTC)
-    const now = new Date();
-    const day = now.getUTCDay();
-    const diff = now.getUTCDate() - (day === 0 ? 6 : day - 1);
-    const mondayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
+<canvas id="mc"></canvas>
+<div id="streakPanel"></div>
 
-    ctx.save();
-    ctx.translate(-cameraX, 0);
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    let sC = Math.max(0, Math.floor(cameraX / CELL_W));
-    let eC = Math.min(MAX_COLS - 1, Math.floor((cameraX + window.innerWidth) / CELL_W) + 1);
+    const firebaseConfig = {
+        databaseURL: "https://trinity-os-8edd0-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
 
-    // Draw Grid Lines
-    ctx.strokeStyle = '#21262D';
-    ctx.lineWidth = 1;
-    for (let r = 0; r <= TOTAL_ROWS; r++) {
-      ctx.beginPath();
-      ctx.moveTo(sC * CELL_W, r * CELL_H);
-      ctx.lineTo((eC + 1) * CELL_W, r * CELL_H);
-      ctx.stroke();
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const canvas = document.getElementById('mc'), ctx = canvas.getContext('2d', {alpha: false});
+    
+    let matrixData = {}, currentColumn = 0, cameraX = 0;
+    const CELL_W = 65, TOTAL_ROWS = 60, MAX_COLS = 7200, BAR_H = 25;
+    let CELL_H = 16;
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight - BAR_H;
+        CELL_H = (canvas.height - BAR_H) / TOTAL_ROWS;
     }
 
-    // Draw Matrix Cells
-    for (let a = sC; a <= eC; a++) {
-      let x = a * CELL_W;
-      if (matrixData[a]) {
-        Object.keys(matrixData[a]).forEach(r => {
-          const d = matrixData[a][r];
-          ctx.fillStyle = d.c === 'R' ? '#FF4757' : '#2ECC71';
-          ctx.fillRect(x + 1, r * CELL_H + 1, CELL_W - 2, CELL_H - 2);
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = 'bold 9px "JetBrains Mono"';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('x' + d.s, x + CELL_W / 2, r * CELL_H + CELL_H / 2);
-        });
-      }
+    function getMondayUTC() {
+        const now = new Date();
+        const day = now.getUTCDay();
+        const diff = now.getUTCDate() - (day === 0 ? 6 : day - 1);
+        return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
     }
-    ctx.restore();
 
-    // --- FORCED IST BOTTOM INDEX ---
-    ctx.fillStyle = '#161B22';
-    ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth, BAR_SIZE);
+    onValue(ref(db, 'matrixData'), (snap) => {
+        if(snap.val()) {
+            matrixData = snap.val();
+            document.getElementById('dot').classList.add('live');
+            updateStreaks();
+        }
+    });
 
-    ctx.save();
-    ctx.translate(-cameraX, 0);
-    ctx.fillStyle = '#8B949E';
-    ctx.font = '700 10px "JetBrains Mono"';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-
-    for (let a = sC; a <= eC; a++) {
-      let x = a * CELL_W;
-      
-      // Calculate IST: Monday UTC + (Column Minutes) + 5.5 Hours (330 minutes)
-      const istMillis = mondayUTC.getTime() + (a * 60000) + (330 * 60000);
-      const istDate = new Date(istMillis);
-
-      // We use getUTC methods on the shifted date to avoid local browser interference
-      const dName = days[istDate.getUTCDay()];
-      const hrs = pad(istDate.getUTCHours());
-      const mins = pad(istDate.getUTCMinutes());
-
-      ctx.fillText(`${dName} ${hrs}:${mins}`, x + CELL_W / 2, (TOTAL_ROWS * CELL_H) + (BAR_SIZE / 2));
+    function updateStreaks() {
+        let h = '';
+        for(let r=0; r<TOTAL_ROWS; r++) {
+            let rm=0, gm=0;
+            Object.values(matrixData).forEach(col => {
+                if(col[r]) {
+                    if(col[r].c==='R') rm = Math.max(rm, col[r].s);
+                    else gm = Math.max(gm, col[r].s);
+                }
+            });
+            h += `<div class="streak-row" style="height:${CELL_H}px"><div class="streak-red">x${rm}</div><div class="streak-green">x${gm}</div></div>`;
+        }
+        document.getElementById('streakPanel').innerHTML = h;
     }
-    ctx.restore();
 
-    requestAnimationFrame(draw);
-  }
+    function draw() {
+        ctx.fillStyle = '#0D1117'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const monday = getMondayUTC();
+        const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+        ctx.save();
+        ctx.translate(-cameraX, 0);
+
+        // Draw Cells
+        for(let colIdx in matrixData) {
+            let x = colIdx * CELL_W;
+            for(let rowIdx in matrixData[colIdx]) {
+                const cell = matrixData[colIdx][rowIdx];
+                ctx.fillStyle = cell.c === 'R' ? '#FF4757' : '#2ECC71';
+                ctx.fillRect(x+1, rowIdx * CELL_H + 1, CELL_W-2, CELL_H-2);
+                ctx.fillStyle = 'white'; ctx.font = 'bold 9px monospace'; ctx.textAlign='center';
+                ctx.fillText('x'+cell.s, x+CELL_W/2, rowIdx * CELL_H + CELL_H/2 + 4);
+            }
+        }
+
+        // IST Bottom Index
+        ctx.restore();
+        ctx.fillStyle = '#161B22'; ctx.fillRect(0, canvas.height - BAR_H, canvas.width, BAR_H);
+        
+        ctx.save();
+        ctx.translate(-cameraX, 0);
+        ctx.fillStyle = '#8B949E'; ctx.font = '700 10px monospace';
+        for(let i=0; i<MAX_COLS; i++) {
+            if(i % 10 === 0) { // Label every 10 mins to keep it clean
+                const istDate = new Date(monday.getTime() + (i * 60000) + (330 * 60000));
+                const label = `${days[istDate.getUTCDay()]} ${String(istDate.getUTCHours()).padStart(2,'0')}:${String(istDate.getUTCMinutes()).padStart(2,'0')}`;
+                ctx.fillText(label, i * CELL_W + 5, canvas.height - 8);
+            }
+        }
+        ctx.restore();
+        requestAnimationFrame(draw);
+    }
+
+    // Touch Scroll
+    let startX = 0;
+    window.addEventListener('touchstart', e => startX = e.touches[0].clientX);
+    window.addEventListener('touchmove', e => {
+        cameraX += startX - e.touches[0].clientX;
+        startX = e.touches[0].clientX;
+        cameraX = Math.max(0, cameraX);
+    });
+
+    window.onresize = resize; resize(); draw();
+</script>
+</body>
+</html>
