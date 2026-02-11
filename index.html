@@ -1,133 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-    <title>TRINITY OS - EURUSD DNA (IST)</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&display=swap');
-        :root { --bg: #0D1117; --panel: #161B22; --border: #30363D; --green: #2ECC71; --red: #FF4757; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: 'JetBrains Mono', monospace; overflow: hidden; }
-        #header { height: 25px; background: var(--panel); display: flex; align-items: center; padding: 0 15px; border-bottom: 1px solid var(--border); font-size: 10px; }
-        .status-dot { width: 8px; height: 8px; background: #555; border-radius: 50%; margin-right: 8px; }
-        .status-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
-        canvas { display: block; background: var(--bg); }
-        #streakPanel { position: fixed; right: 0; top: 25px; width: 80px; height: calc(100% - 50px); background: var(--panel); border-left: 1px solid var(--border); overflow-y: hidden; }
-        .streak-row { display: flex; height: 16.66px; border-bottom: 1px solid #21262D; font-size: 9px; }
-        .streak-red { flex: 1; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: bold; }
-        .streak-green { flex: 1; background: var(--green); display: flex; align-items: center; justify-content: center; font-weight: bold; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>EURUSD DNA - TRINITY OS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+:root{ --bg-primary:#0D1117; --bg-secondary:#161B22; --border-medium:#30363D; --text-secondary:#8B949E; --status-live:#2ECC71; --status-offline:#FF4757; --bar-size: 25px; }
+*{margin:0;padding:0;box-sizing:border-box}
+body,html{ background:var(--bg-primary); width:100vw; height:100vh; overflow:hidden; font-family: 'JetBrains Mono', monospace; touch-action:none; }
+#ui{ position:fixed; top:0; left:0; width:100%; background:var(--bg-secondary); padding:0 20px; z-index:1000; display:flex; align-items:center; border-bottom:1px solid var(--border-medium); height:var(--bar-size); }
+.status{ width: 12px; height: 12px; border-radius: 50%; display: block; font-size: 0; background: var(--status-offline); border: 1px solid rgba(255,255,255,0.1); }
+.status.live{ background: var(--status-live); box-shadow: 0 0 8px rgba(46, 204, 113, 0.5); animation: pulse 2s infinite; }
+.status.history{ background: #3498db; }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } }
+canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary); }
+#streakPanel,#indexPanel{ position:fixed; top:var(--bar-size); height:calc(100vh - (var(--bar-size) * 2)); background:var(--bg-secondary); border-left:1px solid var(--border-medium); z-index:999; }
+#streakPanel{right:75px;width:75px} #indexPanel{right:0;width:75px}
+.streak-row{display:flex;width:100%;border-bottom:1px solid #21262D;cursor:pointer;}
+.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;padding:3px;font-family: 'JetBrains Mono';}
+.streak-col.red-side{background:linear-gradient(135deg, #FF4757 0%, #FF3838 100%);color:#FFF;}
+.streak-col.green-side{background:linear-gradient(135deg, #2ECC71 0%, #27AE60 100%);color:#FFF;}
+.index-cell{position:absolute;width:100%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text-secondary);border-bottom:1px solid #21262D;background:var(--bg-secondary);font-family: 'JetBrains Mono';}
+#modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,17,23,0.9);z-index:1999;backdrop-filter:blur(6px);}
+#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90vw;max-width:600px;max-height:85vh;background:var(--bg-secondary);border:1px solid var(--border-medium);z-index:2000;flex-direction:column;border-radius:16px;overflow:hidden;}
+</style>
 </head>
 <body>
 
-<div id="header">
-    <div id="dot" class="status-dot"></div>
-    TRINITY OS :: EURUSD :: IST TIME
+<div id="ui">
+    <div id="status" class="status">OFFLINE</div>
+    <div style="margin-left:10px; color:#fff; font-size:10px;">TRINITY OS :: LIVE</div>
 </div>
 
-<canvas id="mc"></canvas>
+<canvas id="matrixCanvas"></canvas>
 <div id="streakPanel"></div>
+<div id="indexPanel"></div>
+
+<div id="modalOverlay" onclick="closeModal()"></div>
+<div id="modal">
+  <div id="modalTitle" style="padding:20px; text-align:center; background:#1C2128; color:#E6EDF3; border-bottom:1px solid #30363D; font-family:'JetBrains Mono'"></div>
+  <div style="display:flex; flex:1; overflow:hidden;">
+    <div style="flex:1; overflow-y:auto; background:linear-gradient(135deg, #FF4757 0%, #FF3838 100%)"><div id="rD"></div></div>
+    <div style="flex:1; overflow-y:auto; background:linear-gradient(135deg, #2ECC71 0%, #27AE60 100%)"><div id="gD"></div></div>
+  </div>
+</div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    const firebaseConfig = {
-        databaseURL: "https://trinity-os-8edd0-default-rtdb.asia-southeast1.firebasedatabase.app"
-    };
+  // --- YOUR HARDCODED CONFIG ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyCX-bZLDHy-6wxuc5b8YInV_Mr7uYOTmgk",
+    authDomain: "trinity-os-8edd0.firebaseapp.com",
+    databaseURL: "https://trinity-os-8edd0-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "trinity-os-8edd0",
+    storageBucket: "trinity-os-8edd0.firebasestorage.app",
+    messagingSenderId: "692349337854",
+    appId: "1:692349337854:web:ef24ead6e7362a5772a5af"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const canvas = document.getElementById('mc'), ctx = canvas.getContext('2d', {alpha: false});
-    
-    let matrixData = {}, currentColumn = 0, cameraX = 0;
-    const CELL_W = 65, TOTAL_ROWS = 60, MAX_COLS = 7200, BAR_H = 25;
-    let CELL_H = 16;
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight - BAR_H;
-        CELL_H = (canvas.height - BAR_H) / TOTAL_ROWS;
-    }
+  const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false});
+  let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true;
+  const CELL_W=65, TOTAL_ROWS=60, MAX_COLS=7200, MARGIN_RIGHT=150, BAR_SIZE=25; 
+  let CELL_H=16;
+  const pad=(n,s=2)=>String(n).padStart(s,'0');
 
-    function getMondayUTC() {
-        const now = new Date();
-        const day = now.getUTCDay();
-        const diff = now.getUTCDate() - (day === 0 ? 6 : day - 1);
-        return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
-    }
+  function getWeekProgress(){
+    const now = new Date();
+    const day = now.getUTCDay();
+    const hours = now.getUTCHours();
+    const minutes = now.getUTCMinutes();
+    const seconds = now.getUTCSeconds();
+    const secsToday = (hours * 3600) + (minutes * 60) + seconds;
+    let s = (day === 0) ? (6 * 86400) + secsToday : ((day - 1) * 86400) + secsToday;
+    return Math.max(0, s);
+  }
 
-    onValue(ref(db, 'matrixData'), (snap) => {
-        if(snap.val()) {
-            matrixData = snap.val();
-            document.getElementById('dot').classList.add('live');
-            updateStreaks();
-        }
-    });
+  function updateCurrentColumn() {
+      const s = getWeekProgress();
+      currentColumn = Math.floor(s / 60) % MAX_COLS;
+      if(isFollowing) jumpToCurrent();
+  }
 
-    function updateStreaks() {
-        let h = '';
-        for(let r=0; r<TOTAL_ROWS; r++) {
-            let rm=0, gm=0;
-            Object.values(matrixData).forEach(col => {
-                if(col[r]) {
-                    if(col[r].c==='R') rm = Math.max(rm, col[r].s);
-                    else gm = Math.max(gm, col[r].s);
-                }
-            });
-            h += `<div class="streak-row" style="height:${CELL_H}px"><div class="streak-red">x${rm}</div><div class="streak-green">x${gm}</div></div>`;
-        }
-        document.getElementById('streakPanel').innerHTML = h;
-    }
-
-    function draw() {
-        ctx.fillStyle = '#0D1117'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        const monday = getMondayUTC();
-        const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-
-        ctx.save();
-        ctx.translate(-cameraX, 0);
-
-        // Draw Cells
-        for(let colIdx in matrixData) {
-            let x = colIdx * CELL_W;
-            for(let rowIdx in matrixData[colIdx]) {
-                const cell = matrixData[colIdx][rowIdx];
-                ctx.fillStyle = cell.c === 'R' ? '#FF4757' : '#2ECC71';
-                ctx.fillRect(x+1, rowIdx * CELL_H + 1, CELL_W-2, CELL_H-2);
-                ctx.fillStyle = 'white'; ctx.font = 'bold 9px monospace'; ctx.textAlign='center';
-                ctx.fillText('x'+cell.s, x+CELL_W/2, rowIdx * CELL_H + CELL_H/2 + 4);
-            }
-        }
-
-        // IST Bottom Index
-        ctx.restore();
-        ctx.fillStyle = '#161B22'; ctx.fillRect(0, canvas.height - BAR_H, canvas.width, BAR_H);
-        
-        ctx.save();
-        ctx.translate(-cameraX, 0);
-        ctx.fillStyle = '#8B949E'; ctx.font = '700 10px monospace';
-        for(let i=0; i<MAX_COLS; i++) {
-            if(i % 10 === 0) { // Label every 10 mins to keep it clean
-                const istDate = new Date(monday.getTime() + (i * 60000) + (330 * 60000));
-                const label = `${days[istDate.getUTCDay()]} ${String(istDate.getUTCHours()).padStart(2,'0')}:${String(istDate.getUTCMinutes()).padStart(2,'0')}`;
-                ctx.fillText(label, i * CELL_W + 5, canvas.height - 8);
-            }
-        }
-        ctx.restore();
+  const dataRef = ref(db, 'matrixData');
+  
+  onValue(dataRef, (snapshot) => {
+    const val = snapshot.val();
+    if(val) {
+        matrixData = val;
+        document.getElementById('status').className = 'status live';
+        updateCurrentColumn();
+        updatePanels();
         requestAnimationFrame(draw);
     }
+  });
 
-    // Touch Scroll
-    let startX = 0;
-    window.addEventListener('touchstart', e => startX = e.touches[0].clientX);
-    window.addEventListener('touchmove', e => {
-        cameraX += startX - e.touches[0].clientX;
-        startX = e.touches[0].clientX;
-        cameraX = Math.max(0, cameraX);
-    });
+  function updatePanels(){
+    let hS='', hI='';
+    for(let r=0; r<TOTAL_ROWS; r++){
+      let rM=0, gM=0;
+      Object.values(matrixData).forEach(m=>{ if(m[r]){ if(m[r].c==='R') rM=Math.max(rM,m[r].s); else gM=Math.max(gM,m[r].s); }});
+      hS+=`<div class="streak-row" onclick="window.openModal(${r})" style="position:absolute;top:${r*CELL_H}px;height:${CELL_H}px"><div class="streak-col red-side">${rM?'x'+rM:'--'}</div><div class="streak-col green-side">${gM?'x'+gM:'--'}</div></div>`;
+      hI+=`<div class="index-cell" style="top:${r*CELL_H}px;height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
+    }
+    document.getElementById('streakPanel').innerHTML=hS; 
+    document.getElementById('indexPanel').innerHTML=hI;
+  }
 
-    window.onresize = resize; resize(); draw();
+  window.openModal = function(sec){
+    document.getElementById('modalTitle').innerText=`${pad(sec)}_${pad(sec)}`;
+    let rL=[], gL=[];
+    Object.keys(matrixData).forEach(col => { if(matrixData[col][sec]){ const d = matrixData[col][sec]; if(d.c === 'R') rL.push(d.s); else gL.push(d.s); }});
+    const sum=(a)=>{ const c={}; a.forEach(x=>c[x]=(c[x]||0)+1); return Object.keys(c).map(k=>({s:parseInt(k),c:c[k]})).sort((x,y)=>y.s-x.s); };
+    document.getElementById('rD').innerHTML = sum(rL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);font-family:'JetBrains Mono'">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
+    document.getElementById('gD').innerHTML = sum(gL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);font-family:'JetBrains Mono'">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
+    document.getElementById('modal').style.display='flex'; 
+    document.getElementById('modalOverlay').style.display='block';
+  }
+
+  function jumpToCurrent(){ cameraX = Math.max(0, (currentColumn*CELL_W)-(window.innerWidth-MARGIN_RIGHT-CELL_W)); }
+  window.closeModal = function(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
+
+  window.onresize=()=>{ 
+    const dpr=window.devicePixelRatio||1; 
+    canvas.width=window.innerWidth*dpr; 
+    canvas.height=(window.innerHeight - BAR_SIZE)*dpr;
+    canvas.style.width=window.innerWidth+'px'; 
+    canvas.style.height=(window.innerHeight - BAR_SIZE)+'px';
+    ctx.scale(dpr,dpr); 
+    CELL_H=(window.innerHeight - (BAR_SIZE * 2))/TOTAL_ROWS;
+    jumpToCurrent();
+  };
+
+  let isDragging = false, startX;
+  canvas.addEventListener('mousedown', e => { isDragging=true; startX=e.clientX + cameraX; isFollowing=false; });
+  window.addEventListener('mouseup', () => isDragging=false);
+  window.addEventListener('mousemove', e => { 
+      if(isDragging) {
+          cameraX = startX - e.clientX;
+          cameraX = Math.max(0, Math.min(cameraX, MAX_COLS*CELL_W));
+      }
+  });
+
+  canvas.addEventListener('dblclick', () => { isFollowing=true; jumpToCurrent(); });
+
+  function draw(){
+    updateCurrentColumn();
+    ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
+    
+    const now = new Date();
+    const diff = now.getUTCDate() - (now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1);
+    const startOfUTCWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
+
+    ctx.save(); 
+    ctx.translate(-cameraX,0);
+    let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+window.innerWidth)/CELL_W)+1);
+    
+    const beforeCol = currentColumn > 0 ? currentColumn - 1 : MAX_COLS - 1;
+    let maxS = 0;
+    if (matrixData[beforeCol]) {
+      Object.values(matrixData[beforeCol]).forEach(d => { if (d.s > maxS) maxS = d.s; });
+    }
+
+    ctx.strokeStyle='#21262D'; ctx.lineWidth=1;
+    for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
+    for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
+    
+    for(let a=sC; a<=eC; a++){
+      let x=a*CELL_W;
+      if(matrixData[a]) Object.keys(matrixData[a]).forEach(r=>{
+        const d=matrixData[a][r];
+        const p=1.5;
+        const isP = (a === beforeCol && d.s === maxS && d.s > 1);
+        const scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(Date.now() / 200)))) : 1;
+
+        ctx.save();
+        if(isP) {
+            ctx.translate(x+CELL_W/2, r*CELL_H+CELL_H/2);
+            ctx.scale(scale, scale);
+            ctx.translate(-(x+CELL_W/2), -(r*CELL_H+CELL_H/2));
+        }
+
+        ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
+        ctx.fillRect(x+p, r*CELL_H+p, CELL_W-(p*2), CELL_H-(p*2));
+        
+        ctx.fillStyle='#FFFFFF'; ctx.font='bold 9px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
+        ctx.restore();
+      });
+    }
+
+    ctx.restore();
+    ctx.fillStyle = '#161B22'; ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth, BAR_SIZE);
+    ctx.strokeStyle = '#30363D'; ctx.beginPath(); ctx.moveTo(0, TOTAL_ROWS * CELL_H); ctx.lineTo(window.innerWidth, TOTAL_ROWS * CELL_H); ctx.stroke();
+
+    ctx.save();
+    ctx.translate(-cameraX, 0);
+    ctx.fillStyle='#8B949E'; ctx.font='700 11px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle'; 
+    for(let a=sC; a<=eC; a++){
+      if (a <= currentColumn) { 
+        let x=a*CELL_W;
+        const lD=new Date(startOfUTCWeek.getTime()+(a*60000));
+        ctx.fillText(`${pad(lD.getUTCHours())}:${pad(lD.getUTCMinutes())}`, x+CELL_W/2, (TOTAL_ROWS*CELL_H) + (BAR_SIZE / 2));
+      }
+    }
+    ctx.restore(); 
+    requestAnimationFrame(draw);
+  }
+
+  window.onresize(); draw();
 </script>
 </body>
 </html>
