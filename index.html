@@ -1,166 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>EURUSD DNA - TRINITY OS (IST)</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-:root{ --bg-primary:#0D1117; --bg-secondary:#161B22; --border-medium:#30363D; --text-secondary:#8B949E; --status-live:#2ECC71; --status-offline:#FF4757; --bar-size: 25px; }
-*{margin:0;padding:0;box-sizing:border-box}
-body,html{ background:var(--bg-primary); width:100vw; height:100vh; overflow:hidden; font-family: 'JetBrains Mono', monospace; touch-action:none; }
-#ui{ position:fixed; top:0; left:0; width:100%; background:var(--bg-secondary); padding:0 20px; z-index:1000; display:flex; align-items:center; border-bottom:1px solid var(--border-medium); height:var(--bar-size); }
-.status{ width: 12px; height: 12px; border-radius: 50%; display: block; font-size: 0; background: var(--status-offline); border: 1px solid rgba(255,255,255,0.1); }
-.status.live{ background: var(--status-live); box-shadow: 0 0 8px rgba(46, 204, 113, 0.5); animation: pulse 2s infinite; }
-canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary); }
-#streakPanel,#indexPanel{ position:fixed; top:var(--bar-size); height:calc(100vh - (var(--bar-size) * 2)); background:var(--bg-secondary); border-left:1px solid var(--border-medium); z-index:999; }
-#streakPanel{right:75px;width:75px} #indexPanel{right:0;width:75px}
-.streak-row{display:flex;width:100%;border-bottom:1px solid #21262D;cursor:pointer;}
-.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;padding:3px;font-family: 'JetBrains Mono';}
-.streak-col.red-side{background:linear-gradient(135deg, #FF4757 0%, #FF3838 100%);color:#FFF;}
-.streak-col.green-side{background:linear-gradient(135deg, #2ECC71 0%, #27AE60 100%);color:#FFF;}
-.index-cell{position:absolute;width:100%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text-secondary);border-bottom:1px solid #21262D;background:var(--bg-secondary);font-family: 'JetBrains Mono';}
-#modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,17,23,0.9);z-index:1999;backdrop-filter:blur(6px);}
-#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90vw;max-width:600px;max-height:85vh;background:var(--bg-secondary);border:1px solid var(--border-medium);z-index:2000;flex-direction:column;border-radius:16px;overflow:hidden;}
-</style>
-</head>
-<body>
+// ... (Keep the Firebase initialization and setup the same as the previous code)
 
-<div id="ui">
-    <div id="status" class="status">OFFLINE</div>
-    <div style="margin-left:10px; color:#fff; font-size:10px;">TRINITY OS :: IST TIME</div>
-</div>
+  function draw() {
+    ctx.fillStyle = '#0D1117';
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-<canvas id="matrixCanvas"></canvas>
-<div id="streakPanel"></div>
-<div id="indexPanel"></div>
-
-<div id="modalOverlay" onclick="closeModal()"></div>
-<div id="modal">
-  <div id="modalTitle" style="padding:20px; text-align:center; background:#1C2128; color:#E6EDF3; border-bottom:1px solid #30363D; font-family:'JetBrains Mono'"></div>
-  <div style="display:flex; flex:1; overflow:hidden;">
-    <div style="flex:1; overflow-y:auto; background:linear-gradient(135deg, #FF4757 0%, #FF3838 100%)"><div id="rD"></div></div>
-    <div style="flex:1; overflow-y:auto; background:linear-gradient(135deg, #2ECC71 0%, #27AE60 100%)"><div id="gD"></div></div>
-  </div>
-</div>
-
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCX-bZLDHy-6wxuc5b8YInV_Mr7uYOTmgk",
-    authDomain: "trinity-os-8edd0.firebaseapp.com",
-    databaseURL: "https://trinity-os-8edd0-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "trinity-os-8edd0",
-    storageBucket: "trinity-os-8edd0.firebasestorage.app",
-    messagingSenderId: "692349337854",
-    appId: "1:692349337854:web:ef24ead6e7362a5772a5af"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-
-  const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false});
-  let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true;
-  const CELL_W=65, TOTAL_ROWS=60, MAX_COLS=7200, MARGIN_RIGHT=150, BAR_SIZE=25; 
-  let CELL_H=16;
-  const pad=(n,s=2)=>String(n).padStart(s,'0');
-
-  function getWeekProgress(){
+    // 1. Establish the Anchor (Monday 00:00 UTC)
     const now = new Date();
     const day = now.getUTCDay();
-    const hours = now.getUTCHours();
-    const minutes = now.getUTCMinutes();
-    const seconds = now.getUTCSeconds();
-    const secsToday = (hours * 3600) + (minutes * 60) + seconds;
-    let s = (day === 0) ? (6 * 86400) + secsToday : ((day - 1) * 86400) + secsToday;
-    return Math.max(0, s);
-  }
+    const diff = now.getUTCDate() - (day === 0 ? 6 : day - 1);
+    const mondayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
 
-  const dataRef = ref(db, 'matrixData');
-  onValue(dataRef, (snapshot) => {
-    const val = snapshot.val();
-    if(val) {
-        matrixData = val;
-        document.getElementById('status').className = 'status live';
-        const s = getWeekProgress();
-        currentColumn = Math.floor(s / 60) % MAX_COLS;
-        updatePanels();
-        if(isFollowing) jumpToCurrent();
+    ctx.save();
+    ctx.translate(-cameraX, 0);
+
+    let sC = Math.max(0, Math.floor(cameraX / CELL_W));
+    let eC = Math.min(MAX_COLS - 1, Math.floor((cameraX + window.innerWidth) / CELL_W) + 1);
+
+    // Draw Grid Lines
+    ctx.strokeStyle = '#21262D';
+    ctx.lineWidth = 1;
+    for (let r = 0; r <= TOTAL_ROWS; r++) {
+      ctx.beginPath();
+      ctx.moveTo(sC * CELL_W, r * CELL_H);
+      ctx.lineTo((eC + 1) * CELL_W, r * CELL_H);
+      ctx.stroke();
     }
-  });
 
-  function updatePanels(){
-    let hS='', hI='';
-    for(let r=0; r<TOTAL_ROWS; r++){
-      let rM=0, gM=0;
-      Object.values(matrixData).forEach(m=>{ if(m[r]){ if(m[r].c==='R') rM=Math.max(rM,m[r].s); else gM=Math.max(gM,m[r].s); }});
-      hS+=`<div class="streak-row" onclick="window.openModal(${r})" style="position:absolute;top:${r*CELL_H}px;height:${CELL_H}px"><div class="streak-col red-side">${rM?'x'+rM:'--'}</div><div class="streak-col green-side">${gM?'x'+gM:'--'}</div></div>`;
-      hI+=`<div class="index-cell" style="top:${r*CELL_H}px;height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
-    }
-    document.getElementById('streakPanel').innerHTML=hS; 
-    document.getElementById('indexPanel').innerHTML=hI;
-  }
-
-  function jumpToCurrent(){ cameraX = Math.max(0, (currentColumn*CELL_W)-(window.innerWidth-MARGIN_RIGHT-CELL_W)); }
-  window.closeModal = function(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
-
-  window.onresize=()=>{ 
-    const dpr=window.devicePixelRatio||1; 
-    canvas.width=window.innerWidth*dpr; 
-    canvas.height=(window.innerHeight - BAR_SIZE)*dpr;
-    canvas.style.width=window.innerWidth+'px'; 
-    canvas.style.height=(window.innerHeight - BAR_SIZE)+'px';
-    ctx.scale(dpr,dpr); 
-    CELL_H=(window.innerHeight - (BAR_SIZE * 2))/TOTAL_ROWS;
-  };
-
-  function draw(){
-    ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
-    const now = new Date();
-    const diff = now.getUTCDate() - (now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1);
-    const startOfUTCWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
-
-    ctx.save(); 
-    ctx.translate(-cameraX,0);
-    let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+window.innerWidth)/CELL_W)+1);
-    
-    // Grid lines
-    ctx.strokeStyle='#21262D'; ctx.lineWidth=1;
-    for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
-    for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
-    
-    // Cells
-    for(let a=sC; a<=eC; a++){
-      let x=a*CELL_W;
-      if(matrixData[a]) Object.keys(matrixData[a]).forEach(r=>{
-        const d=matrixData[a][r];
-        ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
-        ctx.fillRect(x+1, r*CELL_H+1, CELL_W-2, CELL_H-2);
-        ctx.fillStyle='#FFFFFF'; ctx.font='bold 9px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
-      });
+    // Draw Matrix Cells
+    for (let a = sC; a <= eC; a++) {
+      let x = a * CELL_W;
+      if (matrixData[a]) {
+        Object.keys(matrixData[a]).forEach(r => {
+          const d = matrixData[a][r];
+          ctx.fillStyle = d.c === 'R' ? '#FF4757' : '#2ECC71';
+          ctx.fillRect(x + 1, r * CELL_H + 1, CELL_W - 2, CELL_H - 2);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold 9px "JetBrains Mono"';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('x' + d.s, x + CELL_W / 2, r * CELL_H + CELL_H / 2);
+        });
+      }
     }
     ctx.restore();
 
-    // --- IST BOTTOM INDEX ---
-    ctx.fillStyle = '#161B22'; ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth, BAR_SIZE);
+    // --- FORCED IST BOTTOM INDEX ---
+    ctx.fillStyle = '#161B22';
+    ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth, BAR_SIZE);
+
     ctx.save();
     ctx.translate(-cameraX, 0);
-    ctx.fillStyle='#8B949E'; ctx.font='700 11px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle'; 
-    for(let a=sC; a<=eC; a++){
-        let x=a*CELL_W;
-        // UTC + 5.5 hours for IST
-        const lD = new Date(startOfUTCWeek.getTime() + (a * 60000) + (330 * 60000));
-        const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-        ctx.fillText(`${days[lD.getUTCDay()]} ${pad(lD.getUTCHours())}:${pad(lD.getUTCMinutes())}`, x+CELL_W/2, (TOTAL_ROWS*CELL_H) + (BAR_SIZE / 2));
+    ctx.fillStyle = '#8B949E';
+    ctx.font = '700 10px "JetBrains Mono"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+    for (let a = sC; a <= eC; a++) {
+      let x = a * CELL_W;
+      
+      // Calculate IST: Monday UTC + (Column Minutes) + 5.5 Hours (330 minutes)
+      const istMillis = mondayUTC.getTime() + (a * 60000) + (330 * 60000);
+      const istDate = new Date(istMillis);
+
+      // We use getUTC methods on the shifted date to avoid local browser interference
+      const dName = days[istDate.getUTCDay()];
+      const hrs = pad(istDate.getUTCHours());
+      const mins = pad(istDate.getUTCMinutes());
+
+      ctx.fillText(`${dName} ${hrs}:${mins}`, x + CELL_W / 2, (TOTAL_ROWS * CELL_H) + (BAR_SIZE / 2));
     }
-    ctx.restore(); 
+    ctx.restore();
+
     requestAnimationFrame(draw);
   }
-
-  window.onresize(); draw();
-</script>
-</body>
-</html>
