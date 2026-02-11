@@ -3,455 +3,217 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>EURUSD DNA - TIME FIX</title>
+<title>EURUSD DNA - TRINITY OS</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-
-:root{
-  --bg-primary:#0D1117;
-  --bg-secondary:#161B22;
-  --border-medium:#30363D;
-  --text-secondary:#8B949E;
-  --status-live:#2ECC71;
-  --accent:#00E5FF;
-  --bar-size: 30px; 
-  /* FIXED WIDTHS */
-  --w-streak: 50px;
-  --w-index: 55px;
-  --w-reversal: 120px;
-  --w-sidebar: calc(var(--w-streak) + var(--w-index) + var(--w-reversal));
-}
-
+:root{ --bg-primary:#0D1117; --bg-secondary:#161B22; --border-medium:#30363D; --text-secondary:#8B949E; --status-live:#2ECC71; --status-offline:#FF4757; --bar-size: 25px; }
 *{margin:0;padding:0;box-sizing:border-box}
-
-body,html{
-  background:var(--bg-primary);
-  width:100vw;
-  height:100vh;
-  overflow:hidden;
-  font-family: 'JetBrains Mono', monospace;
-  touch-action:none;
-}
-
-/* HEADER */
-#ui{
-  position:fixed;
-  top:0; left:0; right:0;
-  height:var(--bar-size);
-  background:var(--bg-secondary);
-  border-bottom:1px solid var(--border-medium);
-  padding:0 10px;
-  z-index:1000;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-}
-
-.logo { font-weight:800; color:#fff; font-size:12px; }
-.logo span { color:var(--accent); }
-.controls { display:flex; gap:10px; align-items:center; }
-.btn {
-  background: #21262D; border: 1px solid var(--border-medium); color: #C9D1D9;
-  padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-weight: 600;
-}
-.btn:hover { border-color: #8B949E; color: #fff; background: #30363D; }
-input[type="file"] { display:none; }
-
-/* MAIN LAYOUT CONTAINER */
-#app-container {
-  display: flex;
-  height: 100vh;
-  padding-top: var(--bar-size);
-}
-
-/* LEFT: CANVAS STAGE */
-#stage {
-  flex: 1;
-  position: relative;
-  background: var(--bg-primary);
-  overflow: hidden;
-}
-canvas { display:block; }
-
-/* RIGHT: SIDEBAR */
-#sidebar {
-  width: var(--w-sidebar);
-  background: var(--bg-secondary);
-  border-left: 1px solid var(--border-medium);
-  display: flex;
-  flex-direction: row;
-  height: 100%;
-}
-
-#col-streak { width: var(--w-streak); border-right: 1px solid var(--border-medium); overflow: hidden; }
-#col-index { width: var(--w-index); border-right: 1px solid var(--border-medium); background: #0d1117; overflow: hidden; }
-#col-reversal { width: var(--w-reversal); background: #0a0a0a; overflow: hidden; }
-
-.streak-row{display:flex;width:100%;border-bottom:1px solid #21262D;cursor:pointer;height:100%;}
-.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;}
-.streak-col.red-side{background:linear-gradient(135deg, #FF4757 0%, #B32431 100%);color:#FFF;}
-.streak-col.green-side{background:linear-gradient(135deg, #2ECC71 0%, #1F8B4C 100%);color:#FFF;}
-
-.index-cell{
-  width:100%; height:100%;
-  display:flex; align-items:center; justify-content:center;
-  font-size:9px; font-weight:700; color:var(--text-secondary);
-  border-bottom:1px solid #21262D;
-}
-
-.reversal-cell{
-  width:100%; height:100%;
-  display:flex; align-items:center; justify-content:center;
-  font-size:7px; font-weight:700;
-  border-bottom:1px solid #21262D;
-  background: #0a0a0a;
-  padding: 1px 2px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.reversal-king{
-  color:#FFD700; font-weight:800; font-size:7px;
-}
-
-/* MODAL */
-#modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:2000;backdrop-filter:blur(2px);}
-#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:300px;height:400px;background:var(--bg-secondary);border:1px solid var(--border-medium);z-index:2001;border-radius:8px;flex-direction:column;overflow:hidden;}
-
+body,html{ background:var(--bg-primary); width:100vw; height:100vh; overflow:hidden; font-family: 'JetBrains Mono', monospace; touch-action:none; }
+#ui{ position:fixed; top:0; left:0; width:100%; background:var(--bg-secondary); padding:0 20px; z-index:1000; display:flex; align-items:center; border-bottom:1px solid var(--border-medium); height:var(--bar-size); }
+.status{ width: 12px; height: 12px; border-radius: 50%; display: block; font-size: 0; background: var(--status-offline); border: 1px solid rgba(255,255,255,0.1); }
+.status.live{ background: var(--status-live); box-shadow: 0 0 8px rgba(46, 204, 113, 0.5); animation: pulse 2s infinite; }
+.status.history{ background: #3498db; }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } }
+canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary); }
+#streakPanel,#indexPanel{ position:fixed; top:var(--bar-size); height:calc(100vh - (var(--bar-size) * 2)); background:var(--bg-secondary); border-left:1px solid var(--border-medium); z-index:999; }
+#streakPanel{right:75px;width:75px} #indexPanel{right:0;width:75px}
+.streak-row{display:flex;width:100%;border-bottom:1px solid #21262D;cursor:pointer;}
+.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;padding:3px;font-family: 'JetBrains Mono';}
+.streak-col.red-side{background:linear-gradient(135deg, #FF4757 0%, #FF3838 100%);color:#FFF;}
+.streak-col.green-side{background:linear-gradient(135deg, #2ECC71 0%, #27AE60 100%);color:#FFF;}
+.index-cell{position:absolute;width:100%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text-secondary);border-bottom:1px solid #21262D;background:var(--bg-secondary);font-family: 'JetBrains Mono';}
+#modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,17,23,0.9);z-index:1999;backdrop-filter:blur(6px);}
+#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90vw;max-width:600px;max-height:85vh;background:var(--bg-secondary);border:1px solid var(--border-medium);z-index:2000;flex-direction:column;border-radius:16px;overflow:hidden;}
 </style>
 </head>
 <body>
 
 <div id="ui">
-  <div class="logo">SYNTHETIC <span>TIME</span></div>
-  <div class="controls">
-    <div id="priceTag" style="color:#2ECC71; font-size:11px; font-weight:bold;">CONNECTING...</div>
-    <label class="btn">📂 CSV <input type="file" id="csvInput" accept=".csv"></label>
-  </div>
+    <div id="status" class="status">OFFLINE</div>
+    <div style="margin-left:10px; color:#fff; font-size:10px;">TRINITY OS :: LIVE</div>
 </div>
 
-<div id="app-container">
-  <div id="stage">
-    <canvas id="matrixCanvas"></canvas>
-  </div>
-  <div id="sidebar">
-    <div id="col-streak"></div>
-    <div id="col-index"></div>
-    <div id="col-reversal"></div>
-  </div>
-</div>
+<canvas id="matrixCanvas"></canvas>
+<div id="streakPanel"></div>
+<div id="indexPanel"></div>
 
 <div id="modalOverlay" onclick="closeModal()"></div>
 <div id="modal">
-  <div id="modalTitle" style="padding:10px; text-align:center; background:#1C2128; color:#fff; font-size:11px; font-weight:bold;"></div>
-  <div style="flex:1; display:flex;">
-    <div id="rD" style="flex:1; overflow-y:auto; background:#1a0505;"></div>
-    <div id="gD" style="flex:1; overflow-y:auto; background:#051a0d;"></div>
+  <div id="modalTitle" style="padding:20px; text-align:center; background:#1C2128; color:#E6EDF3; border-bottom:1px solid #30363D; font-family:'JetBrains Mono'"></div>
+  <div style="display:flex; flex:1; overflow:hidden;">
+    <div style="flex:1; overflow-y:auto; background:linear-gradient(135deg, #FF4757 0%, #FF3838 100%)"><div id="rD"></div></div>
+    <div style="flex:1; overflow-y:auto; background:linear-gradient(135deg, #2ECC71 0%, #27AE60 100%)"><div id="gD"></div></div>
   </div>
 </div>
 
-<script>
-// CONFIG
-const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false});
-const SYMBOL="frxEURUSD", DERIV_WS="wss://ws.derivws.com/websockets/v3?app_id=1089";
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-let matrixData={}, currentColumn=0, ticksInCurrentMinute=0, cameraX=0, isFollowing=true;
-const CELL_W=50; 
-const TOTAL_ROWS=60;
-const MAX_COLS=7200;
-let CELL_H=16; 
-const BAR_SIZE=25; 
+  // --- YOUR HARDCODED CONFIG ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyCX-bZLDHy-6wxuc5b8YInV_Mr7uYOTmgk",
+    authDomain: "trinity-os-8edd0.firebaseapp.com",
+    databaseURL: "https://trinity-os-8edd0-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "trinity-os-8edd0",
+    storageBucket: "trinity-os-8edd0.firebasestorage.app",
+    messagingSenderId: "692349337854",
+    appId: "1:692349337854:web:ef24ead6e7362a5772a5af"
+  };
 
-const ENGINE = {
-  offsets: Array.from({length: 60}, (_, i) => ({
-    id: i, bucket_end: 0,
-    open: 0, close: 0, high: 0, low: 0,
-    prev_streak: 0, prev_color: 'N',
-    show_streak: 0, show_color: 'N'
-  }))
-};
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-function getWeekProgress(){
-  const now=new Date();
-  const day=now.getDay();
-  const secsToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
-  let s = (day === 0) ? (6 * 86400) + secsToday : ((day - 1) * 86400) + secsToday;
-  return Math.max(0, s);
-}
+  const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false});
+  let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true;
+  const CELL_W=65, TOTAL_ROWS=60, MAX_COLS=7200, MARGIN_RIGHT=150, BAR_SIZE=25; 
+  let CELL_H=16;
+  const pad=(n,s=2)=>String(n).padStart(s,'0');
 
-const pad=(n,s=2)=>String(n).padStart(s,'0');
-
-// LOGIC - MATCHES PYTHON SCRIPT EXACTLY
-function processTick(price, time) {
-  document.getElementById('priceTag').innerText = price;
-  
-  for(let i=0; i<60; i++) {
-    const c = ENGINE.offsets[i];
-    const bucket = Math.floor((time - i) / 60) * 60 + i;
-
-    if (bucket > c.bucket_end) {
-      // Process CLOSED candle (matches Python lines 193-220)
-      if (c.bucket_end !== 0) {
-        // Gap detection
-        const time_diff = bucket - c.bucket_end;
-        const is_gap = time_diff > 60;
-        
-        const isBull = c.close > c.open;
-        const isBear = c.close < c.open;
-        const closedColor = isBull ? 'G' : (isBear ? 'R' : 'N');
-        
-        // STRICT RESET LOGIC (Python lines 203-220)
-        if (is_gap || closedColor === 'N') {
-          // Reset streak to 0 on gap or neutral candle
-          c.prev_streak = 0;
-          c.prev_color = 'N';
-        } else if (closedColor === c.prev_color) {
-          // Same color - continue streak
-          c.prev_streak++;
-        } else {
-          // Different color - start new streak
-          c.prev_color = closedColor;
-          c.prev_streak = 1;
-        }
-      }
-      
-      // Start new bucket
-      c.bucket_end = bucket;
-      c.open = price; c.high = price; c.low = price; c.close = price;
-    } else {
-      // Update current bucket
-      c.close = price;
-      if(price > c.high) c.high = price;
-      if(price < c.low) c.low = price;
-    }
-
-    // Calculate LIVE display (current forming candle)
-    const liveBull = c.close > c.open;
-    const liveBear = c.close < c.open;
-    const liveColor = liveBull ? 'G' : (liveBear ? 'R' : 'N');
-
-    // LIVE DISPLAY LOGIC - Exactly matches Python's three-branch logic (lines 203, 222, 225)
-    if (liveColor === 'N') {
-      // Branch 1: Neutral candle (Python line 203: if color == 'Gray')
-      c.show_streak = 0;
-      c.show_color = 'N';
-    } else if (liveColor === c.prev_color && c.prev_color !== 'N') {
-      // Branch 2: Same color continuation (Python line 222: elif color == current_run_color)
-      c.show_streak = c.prev_streak + 1;
-      c.show_color = liveColor;
-    } else {
-      // Branch 3: Different color or fresh start after neutral (Python line 225: else)
-      c.show_streak = 1;
-      c.show_color = liveColor;
-    }
+  function getWeekProgress(){
+    const now = new Date();
+    const day = now.getUTCDay();
+    const hours = now.getUTCHours();
+    const minutes = now.getUTCMinutes();
+    const seconds = now.getUTCSeconds();
+    const secsToday = (hours * 3600) + (minutes * 60) + seconds;
+    let s = (day === 0) ? (6 * 86400) + secsToday : ((day - 1) * 86400) + secsToday;
+    return Math.max(0, s);
   }
-}
 
-function handleTick(tick){
-  const s = getWeekProgress(); 
-  currentColumn = Math.floor(s/60) % MAX_COLS; 
-  ticksInCurrentMinute = s % 60; 
-  processTick(tick.quote, tick.epoch);
-  
-  if(!matrixData[currentColumn]) matrixData[currentColumn]={};
-  const d = ENGINE.offsets[ticksInCurrentMinute];
-  matrixData[currentColumn][ticksInCurrentMinute] = { c: d.show_color, s: d.show_streak, p: tick.quote };
-
-  updatePanels(); 
-  if(isFollowing) jumpToCurrent();
-}
-
-function updatePanels(){
-  let hS='', hI='', hR='';
-  const rowH = CELL_H + 'px';
-
-  for(let r=0; r<TOTAL_ROWS; r++){
-    const d = ENGINE.offsets[r];
-    let val = d.show_streak || '--';
-    let rM = d.show_color === 'R' ? val : '--';
-    let gM = d.show_color === 'G' ? val : '--';
-    if(d.show_color === 'N') { rM = '--'; gM = '--'; }
-
-    hS+=`<div class="streak-row" onclick="openModal(${r})" style="height:${rowH}"><div class="streak-col red-side">${rM!='--'?'x'+rM:'--'}</div><div class="streak-col green-side">${gM!='--'?'x'+gM:'--'}</div></div>`;
-    hI+=`<div class="index-cell" style="height:${rowH}">${pad(r)}_${pad(r)}</div>`;
-    
-    // Calculate King Streak for this offset
-    const kingInfo = calculateKingStreak(r);
-    if(kingInfo){
-      hR+=`<div class="reversal-cell" style="height:${rowH}"><div class="reversal-king">${kingInfo.tag} x${kingInfo.streak}-${kingInfo.count} [${kingInfo.drop}%] x${kingInfo.nextStreak}-${kingInfo.nextCount}</div></div>`;
-    } else {
-      hR+=`<div class="reversal-cell" style="height:${rowH}"><div style="color:#444;">--</div></div>`;
-    }
+  function updateCurrentColumn() {
+      const s = getWeekProgress();
+      currentColumn = Math.floor(s / 60) % MAX_COLS;
+      if(isFollowing) jumpToCurrent();
   }
-  document.getElementById('col-streak').innerHTML=hS; 
-  document.getElementById('col-index').innerHTML=hI;
-  document.getElementById('col-reversal').innerHTML=hR;
-}
 
-function calculateKingStreak(offset) {
-  // Collect all streaks for this offset
-  let redStreaks = {}, greenStreaks = {};
+  const dataRef = ref(db, 'matrixData');
   
-  Object.values(matrixData).forEach(colData => {
-    if(colData[offset]) {
-      const d = colData[offset];
-      if(d.c === 'R' && d.s > 0) {
-        redStreaks[d.s] = (redStreaks[d.s] || 0) + 1;
-      } else if(d.c === 'G' && d.s > 0) {
-        greenStreaks[d.s] = (greenStreaks[d.s] || 0) + 1;
-      }
+  onValue(dataRef, (snapshot) => {
+    const val = snapshot.val();
+    if(val) {
+        matrixData = val;
+        document.getElementById('status').className = 'status live';
+        updateCurrentColumn();
+        updatePanels();
+        requestAnimationFrame(draw);
     }
   });
-  
-  // Find king for both colors
-  let kings = [];
-  
-  for(let color of ['R', 'G']) {
-    const streaks = color === 'R' ? redStreaks : greenStreaks;
-    const maxStreak = Math.max(0, ...Object.keys(streaks).map(Number));
-    
-    if(maxStreak > 0) {
-      // Find the streak with highest count and biggest dropdown
-      let bestKing = null;
-      let bestDropdown = 0;
-      
-      for(let s = 1; s < maxStreak; s++) {
-        const curr = streaks[s] || 0;
-        const next = streaks[s + 1] || 0;
-        
-        if(curr > 0) { // Show as soon as there's any data
-          const dropout = ((curr - next) / curr) * 100;
-          if(dropout > bestDropdown || (dropout === bestDropdown && curr > (bestKing?.count || 0))) {
-            bestDropdown = dropout;
-            bestKing = {
-              tag: color === 'R' ? 'R' : 'G',
-              streak: s,
-              count: curr,
-              nextStreak: s + 1,
-              nextCount: next,
-              drop: dropout.toFixed(0)
-            };
-          }
-        }
+
+  function updatePanels(){
+    let hS='', hI='';
+    for(let r=0; r<TOTAL_ROWS; r++){
+      let rM=0, gM=0;
+      Object.values(matrixData).forEach(m=>{ if(m[r]){ if(m[r].c==='R') rM=Math.max(rM,m[r].s); else gM=Math.max(gM,m[r].s); }});
+      hS+=`<div class="streak-row" onclick="window.openModal(${r})" style="position:absolute;top:${r*CELL_H}px;height:${CELL_H}px"><div class="streak-col red-side">${rM?'x'+rM:'--'}</div><div class="streak-col green-side">${gM?'x'+gM:'--'}</div></div>`;
+      hI+=`<div class="index-cell" style="top:${r*CELL_H}px;height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
+    }
+    document.getElementById('streakPanel').innerHTML=hS; 
+    document.getElementById('indexPanel').innerHTML=hI;
+  }
+
+  window.openModal = function(sec){
+    document.getElementById('modalTitle').innerText=`${pad(sec)}_${pad(sec)}`;
+    let rL=[], gL=[];
+    Object.keys(matrixData).forEach(col => { if(matrixData[col][sec]){ const d = matrixData[col][sec]; if(d.c === 'R') rL.push(d.s); else gL.push(d.s); }});
+    const sum=(a)=>{ const c={}; a.forEach(x=>c[x]=(c[x]||0)+1); return Object.keys(c).map(k=>({s:parseInt(k),c:c[k]})).sort((x,y)=>y.s-x.s); };
+    document.getElementById('rD').innerHTML = sum(rL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);font-family:'JetBrains Mono'">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
+    document.getElementById('gD').innerHTML = sum(gL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);font-family:'JetBrains Mono'">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
+    document.getElementById('modal').style.display='flex'; 
+    document.getElementById('modalOverlay').style.display='block';
+  }
+
+  function jumpToCurrent(){ cameraX = Math.max(0, (currentColumn*CELL_W)-(window.innerWidth-MARGIN_RIGHT-CELL_W)); }
+  window.closeModal = function(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
+
+  window.onresize=()=>{ 
+    const dpr=window.devicePixelRatio||1; 
+    canvas.width=window.innerWidth*dpr; 
+    canvas.height=(window.innerHeight - BAR_SIZE)*dpr;
+    canvas.style.width=window.innerWidth+'px'; 
+    canvas.style.height=(window.innerHeight - BAR_SIZE)+'px';
+    ctx.scale(dpr,dpr); 
+    CELL_H=(window.innerHeight - (BAR_SIZE * 2))/TOTAL_ROWS;
+    jumpToCurrent();
+  };
+
+  let isDragging = false, startX;
+  canvas.addEventListener('mousedown', e => { isDragging=true; startX=e.clientX + cameraX; isFollowing=false; });
+  window.addEventListener('mouseup', () => isDragging=false);
+  window.addEventListener('mousemove', e => { 
+      if(isDragging) {
+          cameraX = startX - e.clientX;
+          cameraX = Math.max(0, Math.min(cameraX, MAX_COLS*CELL_W));
       }
-      
-      if(bestKing) kings.push(bestKing);
+  });
+
+  canvas.addEventListener('dblclick', () => { isFollowing=true; jumpToCurrent(); });
+
+  function draw(){
+    updateCurrentColumn();
+    ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
+    
+    const now = new Date();
+    const diff = now.getUTCDate() - (now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1);
+    const startOfUTCWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
+
+    ctx.save(); 
+    ctx.translate(-cameraX,0);
+    let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+window.innerWidth)/CELL_W)+1);
+    
+    const beforeCol = currentColumn > 0 ? currentColumn - 1 : MAX_COLS - 1;
+    let maxS = 0;
+    if (matrixData[beforeCol]) {
+      Object.values(matrixData[beforeCol]).forEach(d => { if (d.s > maxS) maxS = d.s; });
     }
-  }
-  
-  // Return the best king (highest dropout)
-  if(kings.length > 0) {
-    kings.sort((a, b) => parseFloat(b.drop) - parseFloat(a.drop));
-    return kings[0];
-  }
-  
-  return null;
-}
 
-function openModal(sec){
-  document.getElementById('modalTitle').innerText=`OFFSET ${pad(sec)}_${pad(sec)}`;
-  let rL=[], gL=[];
-  Object.keys(matrixData).forEach(col => { if(matrixData[col][sec]){ const d = matrixData[col][sec]; if(d.c === 'R') rL.push(d.s); else gL.push(d.s); }});
-  const sum=(a)=>{ const c={}; a.forEach(x=>c[x]=(c[x]||0)+1); return Object.keys(c).map(k=>({s:parseInt(k),c:c[k]})).sort((x,y)=>y.s-x.s); };
-  
-  const rSum = sum(rL); const gSum = sum(gL);
-  document.getElementById('rD').innerHTML = rSum.map(i => `<div style="padding:8px;border-bottom:1px solid #333;color:#ff8888;font-size:10px;"><b>x${i.s}</b> <span style="float:right">${i.c} hits</span></div>`).join('');
-  document.getElementById('gD').innerHTML = gSum.map(i => `<div style="padding:8px;border-bottom:1px solid #333;color:#88ff88;font-size:10px;"><b>x${i.s}</b> <span style="float:right">${i.c} hits</span></div>`).join('');
-  document.getElementById('modal').style.display='flex'; 
-  document.getElementById('modalOverlay').style.display='block';
-}
-function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
-document.getElementById('csvInput').addEventListener('change', function(e) { alert("CSV Loaded."); });
-
-function jumpToCurrent(){ cameraX = Math.max(0, (currentColumn*CELL_W)-(canvas.width/window.devicePixelRatio - CELL_W)); }
-
-window.onresize=()=>{ 
-  const dpr=window.devicePixelRatio||1;
-  const stage = document.getElementById('stage');
-  canvas.width = stage.clientWidth * dpr;
-  canvas.height = stage.clientHeight * dpr;
-  canvas.style.width = stage.clientWidth + 'px';
-  canvas.style.height = stage.clientHeight + 'px';
-  ctx.scale(dpr,dpr); 
-  const availableHeight = stage.clientHeight - BAR_SIZE;
-  CELL_H = availableHeight / TOTAL_ROWS;
-  updatePanels();
-};
-
-function connect(){
-  let ws=new WebSocket(DERIV_WS);
-  ws.onopen=()=>{ ws.send(JSON.stringify({ticks:SYMBOL, subscribe:1})); };
-  ws.onmessage=(m)=>{ const d=JSON.parse(m.data); if(d.tick) handleTick(d.tick); };
-  ws.onclose=()=>{ setTimeout(connect,3000); };
-}
-
-function draw(){
-  const w = canvas.width/window.devicePixelRatio;
-  const h = canvas.height/window.devicePixelRatio;
-  
-  ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,w,h); 
-  
-  ctx.save(); 
-  ctx.translate(-cameraX,0);
-  let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+w)/CELL_W)+1);
-  
-  const beforeCol = currentColumn > 0 ? currentColumn - 1 : MAX_COLS - 1;
-  let maxS = 0;
-  if (matrixData[beforeCol]) Object.values(matrixData[beforeCol]).forEach(d => { if (d.s > maxS) maxS = d.s; });
-
-  ctx.strokeStyle='#21262D'; ctx.lineWidth=1;
-  for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
-  for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
-
-  for(let a=sC; a<=eC; a++){
-    let x=a*CELL_W;
-    if(matrixData[a]) Object.keys(matrixData[a]).forEach(r=>{
-      const d=matrixData[a][r];
-      if(d.c === 'N') return;
-      const isP = (a === beforeCol && d.s === maxS && d.s > 1);
-      const scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(Date.now() / 200)))) : 1;
-      
-      ctx.save();
-      if(isP) { ctx.translate(x+CELL_W/2, r*CELL_H+CELL_H/2); ctx.scale(scale, scale); ctx.translate(-(x+CELL_W/2), -(r*CELL_H+CELL_H/2)); }
-      
-      ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
-      ctx.fillRect(x+1.5, r*CELL_H+1.5, CELL_W-3, CELL_H-3);
-      ctx.fillStyle='#fff'; ctx.font='bold 10px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
-      ctx.restore();
-    });
-  }
-  ctx.restore();
-  
-  const barY = TOTAL_ROWS * CELL_H;
-  ctx.fillStyle = '#161B22'; ctx.fillRect(0, barY, w, BAR_SIZE);
-  ctx.strokeStyle = '#30363D'; ctx.beginPath(); ctx.moveTo(0, barY); ctx.lineTo(w, barY); ctx.stroke();
-  
-  const now=new Date();
-  const day=now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const startOfISTWeek = new Date(now.setDate(diff));
-  startOfISTWeek.setHours(0,0,0,0);
-  
-  ctx.save();
-  ctx.translate(-cameraX, 0);
-  ctx.fillStyle='#8B949E'; 
-  ctx.font='700 9px "JetBrains Mono"'; 
-  ctx.textAlign='center'; 
-  ctx.textBaseline='middle'; 
-  for(let a=sC; a<=eC; a++){
-    if (a <= currentColumn) { 
+    ctx.strokeStyle='#21262D'; ctx.lineWidth=1;
+    for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
+    for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
+    
+    for(let a=sC; a<=eC; a++){
       let x=a*CELL_W;
-      const lD=new Date(startOfISTWeek.getTime()+(a*60000));
-      // DRAW TIME FOR EVERY SINGLE COLUMN
-      ctx.fillText(`${pad(lD.getHours())}:${pad(lD.getMinutes())}`, x+CELL_W/2, barY + (BAR_SIZE / 2));
+      if(matrixData[a]) Object.keys(matrixData[a]).forEach(r=>{
+        const d=matrixData[a][r];
+        const p=1.5;
+        const isP = (a === beforeCol && d.s === maxS && d.s > 1);
+        const scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(Date.now() / 200)))) : 1;
+
+        ctx.save();
+        if(isP) {
+            ctx.translate(x+CELL_W/2, r*CELL_H+CELL_H/2);
+            ctx.scale(scale, scale);
+            ctx.translate(-(x+CELL_W/2), -(r*CELL_H+CELL_H/2));
+        }
+
+        ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
+        ctx.fillRect(x+p, r*CELL_H+p, CELL_W-(p*2), CELL_H-(p*2));
+        
+        ctx.fillStyle='#FFFFFF'; ctx.font='bold 9px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
+        ctx.restore();
+      });
     }
+
+    ctx.restore();
+    ctx.fillStyle = '#161B22'; ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth, BAR_SIZE);
+    ctx.strokeStyle = '#30363D'; ctx.beginPath(); ctx.moveTo(0, TOTAL_ROWS * CELL_H); ctx.lineTo(window.innerWidth, TOTAL_ROWS * CELL_H); ctx.stroke();
+
+    ctx.save();
+    ctx.translate(-cameraX, 0);
+    ctx.fillStyle='#8B949E'; ctx.font='700 11px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle'; 
+    for(let a=sC; a<=eC; a++){
+      if (a <= currentColumn) { 
+        let x=a*CELL_W;
+        const lD=new Date(startOfUTCWeek.getTime()+(a*60000));
+        ctx.fillText(`${pad(lD.getUTCHours())}:${pad(lD.getUTCMinutes())}`, x+CELL_W/2, (TOTAL_ROWS*CELL_H) + (BAR_SIZE / 2));
+      }
+    }
+    ctx.restore(); 
+    requestAnimationFrame(draw);
   }
-  ctx.restore();
 
-  requestAnimationFrame(draw);
-}
-
-window.onload = () => { window.onresize(); connect(); draw(); };
+  window.onresize(); draw();
 </script>
 </body>
 </html>
