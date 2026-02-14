@@ -298,7 +298,8 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
 
   const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
   let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true;
-  const CELL_W=50, TOTAL_ROWS=60, MAX_COLS=7200, BAR_SIZE=25; 
+  const CELL_W=50, TOTAL_ROWS=60, MAX_COLS=7200, BAR_SIZE=25;
+  const RIGHT_MARGIN=440; // 320 (analyzer) + 60 (index) + 60 (streak) 
   let CELL_H=16, cachedStartOfWeek=null, panelUpdateTimer=null;
   const pad=(n,s=2)=>String(n).padStart(s,'0');
 
@@ -392,18 +393,16 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   }
 
   function jumpToCurrent(){ 
-    const rightMargin = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--right-margin'));
-    cameraX = Math.max(0, (currentColumn*CELL_W)-(window.innerWidth-rightMargin-CELL_W)); 
+    cameraX = Math.max(0, (currentColumn*CELL_W)-(window.innerWidth-RIGHT_MARGIN-CELL_W)); 
   }
   
   window.closeModal = function(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
 
   window.onresize=()=>{ 
-    const rightMargin = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--right-margin'));
     const dpr=window.devicePixelRatio||1; 
-    canvas.width=(window.innerWidth - rightMargin)*dpr; 
+    canvas.width=(window.innerWidth - RIGHT_MARGIN)*dpr; 
     canvas.height=(window.innerHeight - BAR_SIZE)*dpr;
-    canvas.style.width=(window.innerWidth - rightMargin)+'px'; 
+    canvas.style.width=(window.innerWidth - RIGHT_MARGIN)+'px'; 
     canvas.style.height=(window.innerHeight - BAR_SIZE)+'px';
     ctx.scale(dpr,dpr); 
     CELL_H=(window.innerHeight - (BAR_SIZE * 2))/TOTAL_ROWS;
@@ -413,8 +412,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
 
   function draw(){
     updateCurrentColumn();
-    const rightMargin = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--right-margin'));
-    ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth-rightMargin,window.innerHeight);
+    ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth-RIGHT_MARGIN,window.innerHeight);
     
     if (!cachedStartOfWeek) {
       const now = new Date();
@@ -424,7 +422,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
 
     ctx.save(); 
     ctx.translate(-cameraX,0);
-    let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+window.innerWidth-rightMargin)/CELL_W)+1);
+    let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+window.innerWidth-RIGHT_MARGIN)/CELL_W)+1);
     
     const beforeCol = currentColumn > 0 ? currentColumn - 1 : MAX_COLS - 1;
     let maxS = 0;
@@ -434,50 +432,42 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
       for(let i=0; i<vals.length; i++) if(vals[i].s > maxS) maxS = vals[i].s;
     }
     
-    // Draw grid boxes for all visible columns
-    ctx.strokeStyle = '#21262D';
-    ctx.lineWidth = 0.5;
-    for(let a=sC; a<=eC; a++){
-      for(let row=0; row<TOTAL_ROWS; row++){
-        ctx.strokeRect(a*CELL_W, row*CELL_H, CELL_W, CELL_H);
-      }
-    }
+    // Draw grid lines
+    ctx.strokeStyle='#21262D'; ctx.lineWidth=1;
+    for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
+    for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
 
-    ctx.textAlign='center'; 
-    ctx.textBaseline='middle';
-    ctx.font='bold 10px "JetBrains Mono"';
+    // Draw filled cells
     const pulseTime = Date.now() / 200;
-    
     for(let a=sC; a<=eC; a++){
       const colData = matrixData[a];
       if(!colData) continue;
-      const x=a*CELL_W, centerX=x+CELL_W/2;
-      const keys = Object.keys(colData);
-      
-      for(let i=0; i<keys.length; i++){
-        const r = keys[i];
-        const d = colData[r];
+      const x=a*CELL_W;
+      Object.keys(colData).forEach(r=>{
+        const d=colData[r];
+        const p=1.5;
         const isP = (a === beforeCol && d.s === maxS && d.s > 1);
-        
-        if(isP) {
-          const scale = 1.0 + (0.2 * Math.abs(Math.sin(pulseTime)));
-          const centerY = r*CELL_H+CELL_H/2;
-          ctx.save();
-          ctx.translate(centerX, centerY);
+        const scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(pulseTime)))) : 1;
+
+        ctx.save();
+        if(isP){
+          ctx.translate(x+CELL_W/2, r*CELL_H+CELL_H/2);
           ctx.scale(scale, scale);
-          ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
-          ctx.fillText('x'+d.s, 0, 0);
-          ctx.restore();
-        } else {
-          ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
-          ctx.fillText('x'+d.s, centerX, r*CELL_H+CELL_H/2);
+          ctx.translate(-(x+CELL_W/2), -(r*CELL_H+CELL_H/2));
         }
-      }
+
+        ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
+        ctx.fillRect(x+p, r*CELL_H+p, CELL_W-(p*2), CELL_H-(p*2));
+
+        ctx.fillStyle='#FFFFFF'; ctx.font='bold 9px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
+        ctx.restore();
+      });
     }
 
     ctx.restore();
-    ctx.fillStyle = '#161B22'; ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth-rightMargin, BAR_SIZE);
-    ctx.strokeStyle = '#30363D'; ctx.beginPath(); ctx.moveTo(0, TOTAL_ROWS * CELL_H); ctx.lineTo(window.innerWidth-rightMargin, TOTAL_ROWS * CELL_H); ctx.stroke();
+    ctx.fillStyle = '#161B22'; ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth-RIGHT_MARGIN, BAR_SIZE);
+    ctx.strokeStyle = '#30363D'; ctx.beginPath(); ctx.moveTo(0, TOTAL_ROWS * CELL_H); ctx.lineTo(window.innerWidth-RIGHT_MARGIN, TOTAL_ROWS * CELL_H); ctx.stroke();
 
     ctx.save();
     ctx.translate(-cameraX, 0);
