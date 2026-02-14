@@ -433,6 +433,15 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
       for(let i=0; i<vals.length; i++) if(vals[i].s > maxS) maxS = vals[i].s;
     }
     
+    // Draw grid boxes for all visible columns
+    ctx.strokeStyle = '#21262D';
+    ctx.lineWidth = 0.5;
+    for(let a=sC; a<=eC; a++){
+      for(let row=0; row<TOTAL_ROWS; row++){
+        ctx.strokeRect(a*CELL_W, row*CELL_H, CELL_W, CELL_H);
+      }
+    }
+
     ctx.textAlign='center'; 
     ctx.textBaseline='middle';
     ctx.font='bold 10px "JetBrains Mono"';
