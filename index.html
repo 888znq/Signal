@@ -151,28 +151,15 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   padding: 7px 4px;
   border-bottom: 1px solid #21262D;
   color: #E6EDF3;
+  white-space: nowrap;
 }
 
-.results-table tr.res-green {
-  background: rgba(46, 204, 113, 0.05);
-}
-
-.results-table tr.res-green td:first-child {
-  color: var(--status-live);
-  font-weight: 700;
-}
-
-.results-table tr.res-red {
-  background: rgba(255, 71, 87, 0.05);
-}
-
-.results-table tr.res-red td:first-child {
-  color: var(--status-offline);
-  font-weight: 700;
+.results-table td:first-child {
+  min-width: 46px;
 }
 
 .results-table tr:hover {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.03);
 }
 
 .no-results {
@@ -244,7 +231,6 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
         <table class="results-table" id="results-table">
             <thead>
                 <tr>
-                    <th>Type</th>
                     <th>Row</th>
                     <th>Level</th>
                     <th>Cur</th>
@@ -254,7 +240,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
             </thead>
             <tbody>
                 <tr>
-                    <td colspan="6" class="no-results">Waiting for data...</td>
+                    <td colspan="5" class="no-results">Waiting for data...</td>
                 </tr>
             </tbody>
         </table>
@@ -300,10 +286,11 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true;
   const CELL_W=50, TOTAL_ROWS=60, MAX_COLS=7200, BAR_SIZE=25;
   const RIGHT_MARGIN=440; // 320 (analyzer) + 60 (index) + 60 (streak) 
-  let CELL_H=16, cachedStartOfWeek=null, panelUpdateTimer=null;
+  let CELL_H=16, panelUpdateTimer=null;
   const pad=(n,s=2)=>String(n).padStart(s,'0');
 
   function getWeekProgress(){
+    // Must match backend UTC calculation exactly so column indices align
     const now = new Date();
     const day = now.getUTCDay();
     const hours = now.getUTCHours();
@@ -371,11 +358,17 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     let hS = '';
     let hI = '';
     
+    // Streak panel: sorted by occurrence (highest first)
     streakData.forEach((data, index) => {
       const yPos = index * CELL_H;
       hS += `<div class="streak-row" onclick="window.openModal(${data.row})" style="position:absolute;top:${yPos}px;height:${CELL_H}px"><div class="streak-col red-side">${data.redMax?'x'+data.redMax:'--'}</div><div class="streak-col green-side">${data.greenMax?'x'+data.greenMax:'--'}</div></div>`;
-      hI += `<div class="index-cell" style="top:${yPos}px;height:${CELL_H}px">${pad(data.row)}</div>`;
     });
+
+    // Index panel: always fixed sequential order 00_00 to 59_59
+    for(let r = 0; r < TOTAL_ROWS; r++){
+      const yPos = r * CELL_H;
+      hI += `<div class="index-cell" style="top:${yPos}px;height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
+    }
     
     document.getElementById('streakPanel').innerHTML = hS; 
     document.getElementById('indexPanel').innerHTML = hI;
@@ -406,7 +399,6 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     canvas.style.height=(window.innerHeight - BAR_SIZE)+'px';
     ctx.scale(dpr,dpr); 
     CELL_H=(window.innerHeight - (BAR_SIZE * 2))/TOTAL_ROWS;
-    cachedStartOfWeek=null;
     jumpToCurrent();
   };
 
@@ -414,11 +406,8 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     updateCurrentColumn();
     ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth-RIGHT_MARGIN,window.innerHeight);
     
-    if (!cachedStartOfWeek) {
-      const now = new Date();
-      const diff = now.getUTCDate() - (now.getUTCDay() === 0 ? 6 : now.getUTCDay() - 1);
-      cachedStartOfWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
-    }
+    // IST offset constant (5h30m in minutes)
+    const IST_OFFSET_MINS = 330;
 
     ctx.save(); 
     ctx.translate(-cameraX,0);
@@ -432,12 +421,8 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
       for(let i=0; i<vals.length; i++) if(vals[i].s > maxS) maxS = vals[i].s;
     }
     
-    // Draw grid lines
-    ctx.strokeStyle='#21262D'; ctx.lineWidth=1;
-    for(let r=0; r<=TOTAL_ROWS; r++){ ctx.beginPath(); ctx.moveTo(sC*CELL_W, r*CELL_H); ctx.lineTo((eC+1)*CELL_W, r*CELL_H); ctx.stroke(); }
-    for(let c=sC; c<=eC+1; c++){ ctx.beginPath(); ctx.moveTo(c*CELL_W, 0); ctx.lineTo(c*CELL_W, TOTAL_ROWS*CELL_H); ctx.stroke(); }
-
-    // Draw filled cells
+    // Draw text only - no grid, no boxes
+    ctx.font='bold 10px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
     const pulseTime = Date.now() / 200;
     for(let a=sC; a<=eC; a++){
       const colData = matrixData[a];
@@ -445,23 +430,18 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
       const x=a*CELL_W;
       Object.keys(colData).forEach(r=>{
         const d=colData[r];
-        const p=1.5;
         const isP = (a === beforeCol && d.s === maxS && d.s > 1);
         const scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(pulseTime)))) : 1;
-
-        ctx.save();
+        ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
         if(isP){
+          ctx.save();
           ctx.translate(x+CELL_W/2, r*CELL_H+CELL_H/2);
           ctx.scale(scale, scale);
-          ctx.translate(-(x+CELL_W/2), -(r*CELL_H+CELL_H/2));
+          ctx.fillText('x'+d.s, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
         }
-
-        ctx.fillStyle = d.c==='R' ? '#FF4757' : '#2ECC71';
-        ctx.fillRect(x+p, r*CELL_H+p, CELL_W-(p*2), CELL_H-(p*2));
-
-        ctx.fillStyle='#FFFFFF'; ctx.font='bold 9px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
-        ctx.restore();
       });
     }
 
@@ -474,9 +454,11 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     ctx.fillStyle='#8B949E'; ctx.font='700 10px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle'; 
     const barY = (TOTAL_ROWS*CELL_H) + (BAR_SIZE / 2);
     for(let a=sC; a<=eC; a++){
-      if (a <= currentColumn) { 
-        const lD=new Date(cachedStartOfWeek.getTime()+(a*60000));
-        ctx.fillText(`${pad(lD.getUTCHours())}:${pad(lD.getUTCMinutes())}`, a*CELL_W+CELL_W/2, barY);
+      if (a <= currentColumn) {
+        const totalMins = (a + IST_OFFSET_MINS) % (7 * 24 * 60);
+        const h = Math.floor(totalMins / 60) % 24;
+        const m = totalMins % 60;
+        ctx.fillText(`${pad(h)}:${pad(m)}`, a*CELL_W+CELL_W/2, barY);
       }
     }
     ctx.restore(); 
@@ -572,20 +554,19 @@ function renderResults(kings) {
     const sorted = Object.values(kings).sort((a, b) => b.cur - a.cur);
     
     if (sorted.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="no-results">No patterns found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="no-results">No patterns found</td></tr>';
         return;
     }
     
     sorted.forEach(k => {
         const tr = document.createElement('tr');
-        tr.className = k.col === 'Green' ? 'res-green' : 'res-red';
+        const color = k.col === 'Green' ? '#2ECC71' : '#FF4757';
         tr.innerHTML = `
-            <td>${k.col}</td>
-            <td>${k.row.toString().padStart(2, '0')}</td>
-            <td>${k.lvl}</td>
-            <td>${k.cur}</td>
-            <td>${k.nxt}</td>
-            <td>${k.s}%</td>
+            <td style="color:${color};font-weight:700">${k.row.toString().padStart(2,'0')}_${k.row.toString().padStart(2,'0')}</td>
+            <td style="color:${color};font-weight:700">${k.lvl}</td>
+            <td style="color:${color};font-weight:700">${k.cur}</td>
+            <td style="color:${color};font-weight:700">${k.nxt}</td>
+            <td style="color:${color};font-weight:700">${k.s}%</td>
         `;
         tbody.appendChild(tr);
     });
