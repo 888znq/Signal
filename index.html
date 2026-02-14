@@ -215,6 +215,116 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
 #modalOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(13,17,23,0.9);z-index:1999;backdrop-filter:blur(6px);}
 #modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90vw;max-width:600px;max-height:85vh;background:var(--bg-secondary);border:1px solid var(--border-medium);z-index:2000;flex-direction:column;border-radius:16px;overflow:hidden;}
 
+/* Reset Button */
+.reset-button {
+  background: var(--status-offline);
+  color: #FFFFFF;
+  border: none;
+  padding: 4px 10px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.reset-button:hover {
+  background: #E74C3C;
+  box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
+  transform: translateY(-1px);
+}
+
+.reset-button:active {
+  transform: translateY(0);
+}
+
+.reset-button:disabled {
+  background: #4A5057;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Confirmation Dialog */
+.confirm-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-secondary);
+  border: 2px solid var(--status-offline);
+  border-radius: 8px;
+  padding: 20px;
+  z-index: 2001;
+  min-width: 300px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  display: none;
+}
+
+.confirm-dialog.show {
+  display: block;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translate(-50%, -60%); opacity: 0; }
+  to { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+.confirm-dialog h3 {
+  color: var(--status-offline);
+  font-size: 14px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.confirm-dialog p {
+  color: #E6EDF3;
+  font-size: 11px;
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+.confirm-dialog-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.confirm-dialog button {
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+}
+
+.confirm-cancel {
+  background: var(--border-medium);
+  color: #E6EDF3;
+}
+
+.confirm-cancel:hover {
+  background: #4A5057;
+}
+
+.confirm-reset {
+  background: var(--status-offline);
+  color: #FFFFFF;
+}
+
+.confirm-reset:hover {
+  background: #E74C3C;
+  box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
@@ -229,7 +339,10 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
         <div id="status" class="status">OFFLINE</div>
         <div style="margin-left:10px; color:#fff; font-size:10px;">TRINITY OS :: LIVE</div>
     </div>
-    <div style="color:var(--text-secondary); font-size:9px;">KING STREAK ANALYZER</div>
+    <div style="display:flex;align-items:center;gap:15px;">
+        <button id="resetButton" class="reset-button" title="Reset all matrix data">🗑️ Reset DB</button>
+        <div style="color:var(--text-secondary); font-size:9px;">KING STREAK ANALYZER</div>
+    </div>
 </div>
 
 <canvas id="matrixCanvas"></canvas>
@@ -278,9 +391,19 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   </div>
 </div>
 
+<!-- Reset Confirmation Dialog -->
+<div id="confirmDialog" class="confirm-dialog">
+  <h3>⚠️ Reset Database</h3>
+  <p>This will permanently delete all matrix data from Firebase. This action cannot be undone. Are you sure you want to continue?</p>
+  <div class="confirm-dialog-buttons">
+    <button class="confirm-cancel" onclick="closeConfirmDialog()">Cancel</button>
+    <button class="confirm-reset" onclick="confirmReset()">Reset Database</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+  import { getDatabase, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCX-bZLDHy-6wxuc5b8YInV_Mr7uYOTmgk",
@@ -294,6 +417,66 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
+
+  // Reset Database Functionality
+  window.showResetConfirmation = function() {
+    document.getElementById('confirmDialog').classList.add('show');
+    document.getElementById('modalOverlay').style.display = 'block';
+  };
+
+  window.closeConfirmDialog = function() {
+    document.getElementById('confirmDialog').classList.remove('show');
+    document.getElementById('modalOverlay').style.display = 'none';
+  };
+
+  window.confirmReset = async function() {
+    const resetButton = document.getElementById('resetButton');
+    resetButton.disabled = true;
+    resetButton.textContent = '🔄 Resetting...';
+    
+    try {
+      const matrixRef = ref(db, 'matrixData');
+      await remove(matrixRef);
+      
+      // Clear local data
+      matrixData = {};
+      
+      // Reset UI
+      const tbody = document.querySelector('#results-table tbody');
+      tbody.innerHTML = '<tr><td colspan="6" class="no-results">Database reset. Waiting for new data...</td></tr>';
+      
+      // Clear canvas
+      const rightMargin = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--right-margin'));
+      ctx.fillStyle = '#0D1117';
+      ctx.fillRect(0, 0, window.innerWidth - rightMargin, window.innerHeight);
+      
+      resetButton.textContent = '✓ Reset Complete';
+      resetButton.style.background = '#2ECC71';
+      
+      setTimeout(() => {
+        resetButton.disabled = false;
+        resetButton.textContent = '🗑️ Reset DB';
+        resetButton.style.background = '';
+      }, 3000);
+      
+      console.log('Database reset successfully');
+    } catch (error) {
+      console.error('Error resetting database:', error);
+      resetButton.textContent = '✗ Reset Failed';
+      resetButton.style.background = '#E74C3C';
+      
+      setTimeout(() => {
+        resetButton.disabled = false;
+        resetButton.textContent = '🗑️ Reset DB';
+        resetButton.style.background = '';
+      }, 3000);
+    }
+    
+    closeConfirmDialog();
+  };
+
+  // Attach reset button event
+  document.getElementById('resetButton').addEventListener('click', showResetConfirmation);
 
   const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
   let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true;
