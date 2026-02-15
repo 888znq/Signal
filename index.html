@@ -55,14 +55,13 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
 
 /* Streak Panel */
 #streakPanel{overflow-y:auto;}
-/* NOTE: .streak-row is now positioned absolutely in JS, so flex here is just for internal alignment */
-.streak-row{display:flex; align-items:center; width:100%; border-bottom:1px solid #21262D; cursor:pointer;}
-.streak-col{flex:1; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; height:100%; font-family: 'JetBrains Mono';}
+.streak-row{display:flex;width:100%;border-bottom:1px solid #21262D;cursor:pointer;}
+.streak-col{flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;padding:2px;font-family: 'JetBrains Mono';}
 .streak-col.red-side{background:linear-gradient(135deg, #FF4757 0%, #FF3838 100%);color:#FFF;}
 .streak-col.green-side{background:linear-gradient(135deg, #2ECC71 0%, #27AE60 100%);color:#FFF;}
 
 /* Index Panel */
-.index-cell{position:absolute; width:100%; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; color:var(--text-secondary); border-bottom:1px solid #21262D; background:var(--bg-secondary); font-family: 'JetBrains Mono';}
+.index-cell{position:absolute;width:100%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--text-secondary);border-bottom:1px solid #21262D;background:var(--bg-secondary);font-family: 'JetBrains Mono';}
 
 /* King Streak Analyzer Panel */
 #analyzerPanel {
@@ -78,6 +77,45 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 2px solid var(--border-medium);
+}
+
+.analyzer-header h3 {
+  color: #E6EDF3;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.analyzer-header .badge {
+  background: var(--status-live);
+  color: #000;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.mode-display {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  font-size: 9px;
+  color: var(--text-secondary);
+}
+
+.mode-display .mode-label {
+  color: #E6EDF3;
+  font-weight: 700;
+  margin-right: 5px;
+}
+
+.mode-display .mode-value {
+  color: var(--status-live);
+  font-weight: 700;
 }
 
 .results-container {
@@ -153,7 +191,12 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   height: 6px;
   border-radius: 50%;
   background: var(--status-live);
-  box-shadow: 0 0 5px var(--status-live);
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 /* Modal */
@@ -182,6 +225,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
 <div id="streakPanel"></div>
 <div id="indexPanel"></div>
 
+<!-- King Streak Analyzer Panel -->
 <div id="analyzerPanel">
     <div class="results-container">
         <table class="results-table" id="results-table">
@@ -205,12 +249,13 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     <div class="analyzer-footer">
         <div class="refresh-indicator">
             <div class="refresh-dot"></div>
-            <span>SYNC: LIVE</span>
+            <span>Auto-refresh: <span id="countdown">60</span>s</span>
         </div>
-        <div id="lastUpdate">--:--:--</div>
+        <div id="lastUpdate">Never</div>
     </div>
 </div>
 
+<!-- Modal -->
 <div id="modalOverlay" onclick="closeModal()"></div>
 <div id="modal">
   <div id="modalTitle" style="padding:20px; text-align:center; background:#1C2128; color:#E6EDF3; border-bottom:1px solid #30363D; font-family:'JetBrains Mono'"></div>
@@ -240,11 +285,12 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   const canvas=document.getElementById('matrixCanvas'), ctx=canvas.getContext('2d',{alpha:false,desynchronized:true});
   let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true;
   const CELL_W=50, TOTAL_ROWS=60, MAX_COLS=7200, BAR_SIZE=25;
-  const RIGHT_MARGIN=440; 
+  const RIGHT_MARGIN=440; // 320 (analyzer) + 60 (index) + 60 (streak) 
   let CELL_H=16, panelUpdateTimer=null;
   const pad=(n,s=2)=>String(n).padStart(s,'0');
 
   function getWeekProgress(){
+    // Must match backend UTC calculation exactly so column indices align
     const now = new Date();
     const day = now.getUTCDay();
     const hours = now.getUTCHours();
@@ -262,28 +308,29 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   }
 
   const dataRef = ref(db, 'matrixData');
-   
+  
   onValue(dataRef, (snapshot) => {
     const val = snapshot.val();
     if(val) {
         matrixData = val;
         document.getElementById('status').className = 'status live';
         updateCurrentColumn();
-        
-        // Debounce both panel updates slightly to prevent UI freezing
         if(panelUpdateTimer) clearTimeout(panelUpdateTimer);
-        panelUpdateTimer = setTimeout(() => {
-            updatePanels();
-            analyzeKingStreaks(); // SYNCED: Runs immediately after data update
-        }, 100);
+        panelUpdateTimer = setTimeout(updatePanels, 100);
+        
+        // Auto-analyze on data update
+        if (!window.analyzerInitialized) {
+            window.analyzerInitialized = true;
+            analyzeKingStreaks();
+            startAutoRefresh();
+        }
     }
   });
 
   function updatePanels(){
-    // NO SORTING - Keeps alignment with index panel
-    let hS = '';
-    let hI = '';
+    let streakData = [];
     
+    // Collect all row data with max streaks
     for(let r=0; r<TOTAL_ROWS; r++){
       let rM=0, gM=0;
       Object.values(matrixData).forEach(m=>{ 
@@ -293,49 +340,47 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
         }
       });
       
-      const yPos = r * CELL_H;
+      // Calculate total occurrence for sorting
+      let totalOccurrence = rM + gM;
       
-      // Render Streak Row (Red/Green Split)
-      // Using absolute positioning to match Index Panel exactly
-      hS += `<div class="streak-row" onclick="window.openModal(${r})" 
-              style="position:absolute; top:${yPos}px; left:0; width:100%; height:${CELL_H}px; border-bottom:1px solid #21262D;">
-                <div class="streak-col red-side">${rM?'x'+rM:'--'}</div>
-                <div class="streak-col green-side">${gM?'x'+gM:'--'}</div>
-             </div>`;
+      streakData.push({
+        row: r,
+        redMax: rM,
+        greenMax: gM,
+        totalOccurrence: totalOccurrence
+      });
+    }
+    
+    // Always sort by occurrence - highest to lowest
+    streakData.sort((a, b) => b.totalOccurrence - a.totalOccurrence);
+    
+    // Build HTML
+    let hS = '';
+    let hI = '';
+    
+    // Streak panel: sorted by occurrence (highest first)
+    streakData.forEach((data, index) => {
+      const yPos = index * CELL_H;
+      hS += `<div class="streak-row" onclick="window.openModal(${data.row})" style="position:absolute;top:${yPos}px;height:${CELL_H}px"><div class="streak-col red-side">${data.redMax?'x'+data.redMax:'--'}</div><div class="streak-col green-side">${data.greenMax?'x'+data.greenMax:'--'}</div></div>`;
+    });
 
-      // Render Index Row (00_00)
-      hI += `<div class="index-cell" style="top:${yPos}px; height:${CELL_H}px; border-bottom:1px solid #21262D;">
-                ${pad(r)}_${pad(r)}
-             </div>`;
+    // Index panel: always fixed sequential order 00_00 to 59_59
+    for(let r = 0; r < TOTAL_ROWS; r++){
+      const yPos = r * CELL_H;
+      hI += `<div class="index-cell" style="top:${yPos}px;height:${CELL_H}px">${pad(r)}_${pad(r)}</div>`;
     }
     
     document.getElementById('streakPanel').innerHTML = hS; 
     document.getElementById('indexPanel').innerHTML = hI;
   }
 
-  // UPDATED MODAL FUNCTION: Sorts Ascending (x1 at Top)
   window.openModal = function(sec){
     document.getElementById('modalTitle').innerText=`${pad(sec)}_${pad(sec)}`;
     let rL=[], gL=[];
-    
-    Object.keys(matrixData).forEach(col => { 
-        if(matrixData[col][sec]){ 
-            const d = matrixData[col][sec]; 
-            if(d.c === 'R') rL.push(d.s); 
-            else gL.push(d.s); 
-        }
-    });
-
-    const sum=(a)=>{ 
-        const c={}; 
-        a.forEach(x=>c[x]=(c[x]||0)+1); 
-        // CHANGED: sort((x,y)=>x.s-y.s) for Ascending Order (Low to High)
-        return Object.keys(c).map(k=>({s:parseInt(k),c:c[k]})).sort((x,y)=>x.s-y.s); 
-    };
-
+    Object.keys(matrixData).forEach(col => { if(matrixData[col][sec]){ const d = matrixData[col][sec]; if(d.c === 'R') rL.push(d.s); else gL.push(d.s); }});
+    const sum=(a)=>{ const c={}; a.forEach(x=>c[x]=(c[x]||0)+1); return Object.keys(c).map(k=>({s:parseInt(k),c:c[k]})).sort((x,y)=>y.s-x.s); };
     document.getElementById('rD').innerHTML = sum(rL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);font-family:'JetBrains Mono'">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
     document.getElementById('gD').innerHTML = sum(gL).map(i => `<div style="padding:14px;color:#FFF;border-bottom:1px solid rgba(255,255,255,0.1);font-family:'JetBrains Mono'">X${i.s} - ${i.c}</div>`).join('') || '<div style="padding:12px;opacity:0.5">No data</div>';
-    
     document.getElementById('modal').style.display='flex'; 
     document.getElementById('modalOverlay').style.display='block';
   }
@@ -343,7 +388,7 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   function jumpToCurrent(){ 
     cameraX = Math.max(0, (currentColumn*CELL_W)-(window.innerWidth-RIGHT_MARGIN-CELL_W)); 
   }
-   
+  
   window.closeModal = function(){ document.getElementById('modal').style.display='none'; document.getElementById('modalOverlay').style.display='none'; }
 
   window.onresize=()=>{ 
@@ -360,10 +405,14 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
   function draw(){
     updateCurrentColumn();
     ctx.fillStyle='#0D1117'; ctx.fillRect(0,0,window.innerWidth-RIGHT_MARGIN,window.innerHeight);
+    
+    // IST offset constant (5h30m in minutes)
     const IST_OFFSET_MINS = 330;
+
     ctx.save(); 
     ctx.translate(-cameraX,0);
     let sC=Math.max(0,Math.floor(cameraX/CELL_W)), eC=Math.min(MAX_COLS-1,Math.floor((cameraX+window.innerWidth-RIGHT_MARGIN)/CELL_W)+1);
+    
     const beforeCol = currentColumn > 0 ? currentColumn - 1 : MAX_COLS - 1;
     let maxS = 0;
     const beforeData = matrixData[beforeCol];
@@ -371,6 +420,8 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
       const vals = Object.values(beforeData);
       for(let i=0; i<vals.length; i++) if(vals[i].s > maxS) maxS = vals[i].s;
     }
+    
+    // Draw text only - no grid, no boxes
     ctx.font='bold 10px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle';
     const pulseTime = Date.now() / 200;
     for(let a=sC; a<=eC; a++){
@@ -393,9 +444,11 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
         }
       });
     }
+
     ctx.restore();
     ctx.fillStyle = '#161B22'; ctx.fillRect(0, TOTAL_ROWS * CELL_H, window.innerWidth-RIGHT_MARGIN, BAR_SIZE);
     ctx.strokeStyle = '#30363D'; ctx.beginPath(); ctx.moveTo(0, TOTAL_ROWS * CELL_H); ctx.lineTo(window.innerWidth-RIGHT_MARGIN, TOTAL_ROWS * CELL_H); ctx.stroke();
+
     ctx.save();
     ctx.translate(-cameraX, 0);
     ctx.fillStyle='#8B949E'; ctx.font='700 10px "JetBrains Mono"'; ctx.textAlign='center'; ctx.textBaseline='middle'; 
@@ -411,31 +464,37 @@ canvas{ display:block; margin-top:var(--bar-size); background:var(--bg-primary);
     ctx.restore(); 
     requestAnimationFrame(draw);
   }
+
   window.onresize(); 
   draw();
+
+  // Export matrixData for analyzer
   window.getMatrixData = () => matrixData;
 </script>
 
 <script>
-// King Streak Analyzer - REAL TIME SYNCED
+// King Streak Analyzer - Global Mode (All Rows)
+let refreshInterval = null;
+let countdownInterval = null;
+let secondsRemaining = 60;
+
 function analyzeKingStreaks() {
-    // Get fresh data directly
     const matrixData = window.getMatrixData();
     
     if (!matrixData || Object.keys(matrixData).length === 0) {
         return;
     }
     
+    // Global analysis: Analyze all rows together
     let streakKings = {};
     
-    // Analyze all rows (0-59)
+    // For each row (0-59)
     for (let row = 0; row < 60; row++) {
+        // Collect all streaks for this row across all columns
         let redStreaks = {};
         let greenStreaks = {};
         
-        // Optimisation: Iterate keys directly instead of sorting every time for speed
-        // The order of keys doesn't matter for counting totals
-        const columns = Object.keys(matrixData);
+        const columns = Object.keys(matrixData).map(Number).sort((a, b) => a - b);
         
         for (let col of columns) {
             const cellData = matrixData[col][row];
@@ -451,7 +510,7 @@ function analyzeKingStreaks() {
             }
         }
         
-        // Calculate strengths
+        // Calculate strengths for this row
         ['Red', 'Green'].forEach(color => {
             let d = color === 'Red' ? redStreaks : greenStreaks;
             Object.keys(d).forEach(lStr => {
@@ -459,11 +518,15 @@ function analyzeKingStreaks() {
                 let count = d[l];
                 let nxt = d[l+1] || 0;
                 
-                // STRENGTH FORMULA: Probability of breaking
+                // STRENGTH FORMULA: How often streak breaks
                 let strength = (1 - (nxt/count)) * 100;
                 
+                // Include ALL strengths (1% to 100%) with no minimum count
                 if (strength >= 1 && strength <= 100) {
+                    // Key by color and level only (not row) to keep only best per level
                     let key = `${color}-${l}`;
+                    
+                    // Keep only the HIGHEST CUR for each color-level combination
                     if (!streakKings[key] || count > streakKings[key].cur) {
                         streakKings[key] = { 
                             row: row,
@@ -487,6 +550,7 @@ function renderResults(kings) {
     const tbody = document.querySelector('#results-table tbody');
     tbody.innerHTML = '';
     
+    // Sort by CUR (highest first)
     const sorted = Object.values(kings).sort((a, b) => b.cur - a.cur);
     
     if (sorted.length === 0) {
@@ -514,12 +578,46 @@ function updateLastRefreshTime() {
     document.getElementById('lastUpdate').textContent = time;
 }
 
-// Service Worker Registration
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js');
-  });
+function startCountdown() {
+    secondsRemaining = 60;
+    
+    if (countdownInterval) clearInterval(countdownInterval);
+    
+    countdownInterval = setInterval(() => {
+        secondsRemaining--;
+        document.getElementById('countdown').textContent = secondsRemaining;
+        
+        if (secondsRemaining <= 0) {
+            secondsRemaining = 60;
+        }
+    }, 1000);
 }
+
+function startAutoRefresh() {
+    // Initial countdown
+    startCountdown();
+    
+    // Refresh every 60 seconds
+    refreshInterval = setInterval(() => {
+        analyzeKingStreaks();
+        startCountdown();
+    }, 60000);
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (refreshInterval) clearInterval(refreshInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
+});
+</script>
+
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js');
+    });
+  }
 </script>
 
 </body>
