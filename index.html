@@ -105,7 +105,10 @@ function handleTick(tick){
     const old = matrixData[prevC][r];
     if(p > old.p){ col = 'G'; stk = (old.c === 'G' ? old.s + 1 : 1); }
     else if(p < old.p){ col = 'R'; stk = (old.c === 'R' ? old.s + 1 : 1); }
-    else { col = old.c; stk = 0; } // x0 Logic
+    else { 
+        col = old.c; 
+        stk = 0; // x0 Logic for Flat Price
+    } 
   }
   
   matrixData[currentColumn][r] = {c:col, s:stk, p:p};
