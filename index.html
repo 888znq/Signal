@@ -103,9 +103,19 @@ function handleTick(tick){
   
   if(matrixData[prevC] && matrixData[prevC][r]){
     const old = matrixData[prevC][r];
-    if(p > old.p){ col = 'G'; stk = (old.c === 'G' ? old.s + 1 : 1); }
-    else if(p < old.p){ col = 'R'; stk = (old.c === 'R' ? old.s + 1 : 1); }
-    else { col = old.c; stk = 1; }
+    if(p > old.p){ 
+        col = 'G'; 
+        stk = (old.c === 'G' ? old.s + 1 : 1); 
+    }
+    else if(p < old.p){ 
+        col = 'R'; 
+        stk = (old.c === 'R' ? old.s + 1 : 1); 
+    }
+    else { 
+        // FLAT PRICE (x0 LOGIC)
+        col = old.c; 
+        stk = 0; // Display x0 instead of x1
+    }
   }
   
   matrixData[currentColumn][r] = {c:col, s:stk, p:p};
