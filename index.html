@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TRINITY OS - DEEP SCAN</title>
+<title>TRINITY OS - YELLOW ZERO</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0D1117">
 <meta name="mobile-web-app-capable" content="yes">
@@ -77,7 +77,7 @@ let matrixData={}, currentColumn=0, cameraX=0, isFollowing=true, ws=null, isLock
 // DEEP HISTORY STATE
 let tickBacklog = [];
 let historyDepth = 0;
-const TARGET_DEPTH = 3; // 3 chunks of 5000 = 15,000 ticks
+const TARGET_DEPTH = 3; 
 
 const CELL_W=65, MAX_COLS=7200, MARGIN_RIGHT=150, BAR_SIZE=40, BOTTOM_BAR=20;
 const pad=(n,s=2)=>String(n).padStart(s,'0');
@@ -103,19 +103,9 @@ function handleTick(tick){
   
   if(matrixData[prevC] && matrixData[prevC][r]){
     const old = matrixData[prevC][r];
-    if(p > old.p){ 
-        col = 'G'; 
-        stk = (old.c === 'G' ? old.s + 1 : 1); 
-    }
-    else if(p < old.p){ 
-        col = 'R'; 
-        stk = (old.c === 'R' ? old.s + 1 : 1); 
-    }
-    else { 
-        // FLAT PRICE (x0 LOGIC)
-        col = old.c; 
-        stk = 0; // Display x0 instead of x1
-    }
+    if(p > old.p){ col = 'G'; stk = (old.c === 'G' ? old.s + 1 : 1); }
+    else if(p < old.p){ col = 'R'; stk = (old.c === 'R' ? old.s + 1 : 1); }
+    else { col = old.c; stk = 0; } // x0 Logic
   }
   
   matrixData[currentColumn][r] = {c:col, s:stk, p:p};
@@ -137,7 +127,7 @@ function applyCycle() {
     const val = parseInt(document.getElementById('cycleInput').value);
     if(!val || val < 10) return alert("Cycle too small (min 10)");
     CYCLE = val; TOTAL_ROWS = val;
-    matrixData = {}; tickBacklog = []; historyDepth = 0; // Reset Deep Scan
+    matrixData = {}; tickBacklog = []; historyDepth = 0;
     document.getElementById('streakPanel').innerHTML = '';
     document.getElementById('indexPanel').innerHTML = '';
     onResize();
@@ -187,33 +177,24 @@ function connect(restart=false){
     const d=JSON.parse(m.data); 
     if(d.authorize){ 
         document.getElementById('status').classList.remove('live'); 
-        document.getElementById('status').classList.add('loading'); // Orange Status = Loading
+        document.getElementById('status').classList.add('loading'); 
         historyDepth = 0; tickBacklog = [];
-        // REQ 1: Get Latest
         ws.send(JSON.stringify({ ticks_history: SYMBOL, adjust_start_time: 1, count: 5000, end: "latest", start: 1, style: "ticks" }));
     } 
     if(d.history){
         const times = d.history.times; const prices = d.history.prices;
         const newTicks = times.map((t, i) => ({epoch: t, quote: prices[i], isHistory: true}));
-        
         tickBacklog = tickBacklog.concat(newTicks);
         historyDepth++;
         
-        // Deep Scan Logic: If we haven't reached depth target and got full batch, ask for more
         if(historyDepth < TARGET_DEPTH && times.length >= 4900){
-            const oldestEpoch = times[0]; // Oldest is at 0
+            const oldestEpoch = times[0]; 
             ws.send(JSON.stringify({ ticks_history: SYMBOL, adjust_start_time: 1, count: 5000, end: oldestEpoch - 1, start: 1, style: "ticks" }));
         } else {
-            // Process Backlog
             document.getElementById('status').classList.remove('loading');
             document.getElementById('status').classList.add('live');
-            
-            // SORT needed because requests return chunks in reverse order of requests
             tickBacklog.sort((a,b) => a.epoch - b.epoch);
-            
-            // Run Calculations
             tickBacklog.forEach(t => handleTick(t));
-            
             updatePanels(); jumpToCurrent();
             ws.send(JSON.stringify({ticks:SYMBOL, subscribe:1}));
         }
@@ -247,12 +228,19 @@ function draw(){
       const scale = isP ? (1.0 + (0.2 * Math.abs(Math.sin(Date.now() / 200)))) : 1;
       ctx.save();
       if(isP) { ctx.translate(x+CELL_W/2, r*CELL_H+CELL_H/2); ctx.scale(scale, scale); ctx.translate(-(x+CELL_W/2), -(r*CELL_H+CELL_H/2)); }
-      ctx.fillStyle = d.c === 'R' ? '#FF4757' : '#2ECC71'; 
+      
+      // COLOR LOGIC: Check if it's x0
+      if(d.s === 0) {
+          ctx.fillStyle = '#FFD700'; // GOLD/YELLOW for x0
+      } else {
+          ctx.fillStyle = d.c === 'R' ? '#FF4757' : '#2ECC71'; 
+      }
+      
       ctx.font=`bold ${fontSize}px "JetBrains Mono"`; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('x'+d.s, x+CELL_W/2, r*CELL_H+CELL_H/2);
       ctx.restore();
     });
-    // HH:MM Label
+    
     if(a <= currentColumn) {
         const timeMs = startOfWeek.getTime() + (a * CYCLE * 1000);
         const dObj = new Date(timeMs);
